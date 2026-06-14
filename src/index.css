@@ -1,0 +1,303 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&family=Georgia:ital,wght@0,400;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-serif: 'Georgia', serif;
+  
+  /* Quantum Corporate Identity Palette (Oracle-style portal) */
+  --color-quantum-blue: #1C6DB5;        /* Hero / header accent blue */
+  --color-quantum-blue-dark: #134E84;   /* Deep nav */
+  --color-quantum-blue-darker: #0E3C66; /* Sidebar base */
+  --color-quantum-blue-light: #4A90D9;  /* Hover / light accents */
+  --color-quantum-blue-pale: #E8F1FA;   /* Selected pills, tints */
+  --color-quantum-orange: #F57C1F;      /* Notification / alert accent */
+
+  /* The app references `unfpa-blue` heavily — remap it to Quantum blue so the
+     new palette propagates across every component automatically. */
+  --color-unfpa-orange: #F57C1F;
+  --color-unfpa-blue: #1C6DB5;
+  --color-unfpa-dark-blue: #134E84;
+  --color-unfpa-light-blue: #AAC9E9;
+  --color-unfpa-cream: #EAF2FB;
+  --color-unfpa-grey: #5B6B7B;
+
+  /* Aliases for legacy compatibility during migration */
+  --color-un-blue: var(--color-unfpa-blue);
+  --color-un-dark-blue: var(--color-unfpa-dark-blue);
+
+  --color-sidebar-bg: #0E3C66;
+  --color-main-bg: #EEF2F6;
+  --color-card-border: #DCE4EC;
+  --color-text-main: #16263A;
+  --color-text-muted: #5B6B7B;
+  --color-accent-orange: #F57C1F;
+
+  /* Explicit hex overrides for html2canvas compatibility (avoiding oklch/oklab) */
+  --color-slate-50: #F8FAFC;
+  --color-slate-100: #F1F5F9;
+  --color-slate-200: #E2E8F0;
+  --color-slate-300: #CBD5E1;
+  --color-slate-400: #94A3B8;
+  --color-slate-500: #64748B;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1E293B;
+  --color-slate-900: #0F172A;
+  --color-slate-950: #020617;
+  --color-slate-950-50: #02061780;
+
+  --color-red-50: #FEF2F2;
+  --color-red-100: #FEE2E2;
+  --color-red-200: #FECACA;
+  --color-red-300: #FCA5A5;
+  --color-red-400: #F87171;
+  --color-red-500: #EF4444;
+  --color-red-600: #DC2626;
+
+  --color-amber-50: #FFFBEB;
+  --color-amber-100: #FEF3C7;
+  --color-amber-200: #FDE68A;
+  --color-amber-300: #FCD34D;
+  --color-amber-400: #FBBF24;
+  --color-amber-500: #F59E0B;
+  --color-amber-600: #D97706;
+
+  --color-emerald-50: #ECFDF5;
+  --color-emerald-100: #D1FAE5;
+  --color-emerald-200: #A7F3D0;
+  --color-emerald-300: #6EE7B7;
+  --color-emerald-400: #34D399;
+  --color-emerald-500: #10B981;
+  --color-emerald-600: #059669;
+
+  --color-blue-50: #EFF6FF;
+  --color-blue-100: #DBEAFE;
+  --color-blue-200: #BFDBFE;
+  --color-blue-500: #3B82F6;
+  --color-blue-600: #2563EB;
+
+  /* Explicit Opacity Aliases (Avoids color-mix in oklab) */
+  --color-unfpa-cream-30: #EAF2FB4D;
+  --color-unfpa-blue-5: #1C6DB50D;
+  --color-unfpa-blue-10: #1C6DB51A;
+  --color-unfpa-blue-20: #1C6DB533;
+  --color-unfpa-blue-30: #1C6DB54D;
+  --color-unfpa-blue-40: #1C6DB566;
+  --color-unfpa-blue-50: #1C6DB580;
+  --color-unfpa-blue-60: #1C6DB599;
+  --color-unfpa-blue-80: #1C6DB5CC;
+
+  --color-unfpa-orange-5: #F57C1F0D;
+  --color-unfpa-orange-10: #F57C1F1A;
+  --color-unfpa-orange-20: #F57C1F33;
+  --color-unfpa-orange-30: #F57C1F4D;
+  --color-unfpa-orange-50: #F57C1F80;
+
+  --color-slate-50-50: #F8FAFC80;
+  --color-slate-900-50: #0F172A80;
+  --color-slate-900-60: #0F172A99;
+  --color-slate-900-80: #0F172ACC;
+
+  --color-white-5: #FFFFFF0D;
+  --color-white-10: #FFFFFF1A;
+  --color-white-20: #FFFFFF33;
+  --color-white-30: #FFFFFF4D;
+  --color-white-40: #FFFFFF66;
+  --color-white-50: #FFFFFF80;
+  --color-white-70: #FFFFFFB3;
+  --color-white-80: #FFFFFFCC;
+  --color-white-90: #FFFFFFE6;
+  --color-white-95: #FFFFFFF2;
+
+  --color-black-5: #0000000D;
+  --color-black-10: #0000001A;
+
+  --color-slate-50-50: #F8FAFC80;
+  --color-slate-100-50: #F1F5F980;
+  --color-slate-200-50: #E2E8F080;
+  --color-slate-700-50: #33415580;
+  --color-slate-800-40: #1E293B66;
+  --color-slate-900-50: #0F172A80;
+  --color-slate-900-60: #0F172A99;
+  --color-slate-900-80: #0F172ACC;
+
+  --color-red-400-60: #F8717199;
+  --color-red-500-10: #EF44441A;
+  --color-red-500-20: #EF444433;
+  --color-amber-500-10: #F59E0B1A;
+  --color-amber-500-20: #F59E0B33;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-main-bg);
+  color: var(--color-text-main);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Strategic Briefing Branding */
+.briefing-document {
+  font-family: var(--font-sans);
+  color: var(--color-text-main);
+  background-color: white;
+  padding: 40px;
+}
+
+.briefing-header {
+  border-bottom: 2px solid var(--color-unfpa-orange);
+  padding-bottom: 20px;
+  margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.briefing-header h1 {
+  font-family: var(--font-sans);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  color: var(--color-unfpa-blue);
+  font-size: 2rem;
+  line-height: 1;
+  margin: 0;
+}
+
+.briefing-metadata {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+  margin-top: 8px;
+}
+
+.briefing-content h1, .briefing-content h2, .briefing-content h3 {
+  color: var(--color-unfpa-blue);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+
+.briefing-content h1 { font-size: 1.4rem; margin-top: 2rem; border-left: 4px solid var(--color-unfpa-orange); padding-left: 1rem; margin-bottom: 1rem; }
+.briefing-content h2 { font-size: 1.2rem; margin-top: 1.5rem; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+.briefing-content p { line-height: 1.7; margin-bottom: 1.25rem; font-size: 1rem; color: #333; }
+.briefing-content ul, .briefing-content ol { margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-position: outside; }
+.briefing-content ul { list-style-type: disc; }
+.briefing-content ol { list-style-type: decimal; }
+.briefing-content li { margin-bottom: 0.5rem; line-height: 1.7; color: #333; }
+.briefing-content strong { color: var(--color-unfpa-blue); font-weight: 800; }
+
+.unfpa-tagline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 0.875rem;
+  color: var(--color-unfpa-orange);
+}
+
+/* Technical Dashboard Utilities */
+.data-grid-header {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11px;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mono-value {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+.mission-control-border {
+  border-color: #141414;
+  border-width: 1px;
+}
+
+.map-container {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Landing hero geospatial motif animations */
+@keyframes siga-spin { to { transform: rotate(360deg); } }
+@keyframes siga-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes siga-ping {
+  0% { transform: scale(0.5); opacity: 0.75; }
+  80%, 100% { transform: scale(2.6); opacity: 0; }
+}
+@keyframes siga-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.siga-spin { animation: siga-spin 26s linear infinite; }
+.siga-spin-fast { animation: siga-spin 12s linear infinite; }
+.siga-spin-rev { animation: siga-spin-rev 40s linear infinite; }
+.siga-ping { transform-origin: center; animation: siga-ping 3.2s ease-out infinite; }
+.siga-blink { animation: siga-blink 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .siga-spin, .siga-spin-fast, .siga-spin-rev, .siga-ping, .siga-blink { animation: none; }
+}
+
+/* Hide scrollbar but keep scroll (used by the Quantum nav + tabs) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Quantum professional polish ------------------------------------------- */
+/* Soften recharts gridlines/labels and give a consistent corporate feel. */
+.recharts-cartesian-axis-tick text { font-weight: 600; }
+.recharts-default-tooltip {
+  border-radius: 12px !important;
+  border: 1px solid var(--color-card-border) !important;
+  box-shadow: 0 10px 24px -8px rgba(16, 38, 58, 0.18) !important;
+  font-size: 12px !important;
+}
+/* Quantum markdown / prose for AI reports */
+.q-prose { color: #2c3e50; line-height: 1.7; font-size: 14px; }
+.q-prose h1, .q-prose h2, .q-prose h3 {
+  color: var(--color-quantum-blue-darker);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 1.25em 0 0.5em;
+}
+.q-prose h1 { font-size: 1.25rem; }
+.q-prose h2 { font-size: 1.1rem; }
+.q-prose h3 { font-size: 1rem; }
+.q-prose p { margin: 0.6em 0; }
+.q-prose ul, .q-prose ol { margin: 0.6em 0; padding-left: 1.3em; }
+.q-prose li { margin: 0.3em 0; }
+.q-prose strong { color: var(--color-quantum-blue-dark); font-weight: 700; }
+.q-prose table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 13px; }
+.q-prose th, .q-prose td { border: 1px solid var(--color-card-border); padding: 8px 10px; text-align: left; }
+.q-prose th { background: var(--color-quantum-blue-pale); color: var(--color-quantum-blue-darker); font-weight: 700; }
+
+/* Custom Scrollbar for Dropdowns and Dashboards */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-slate-200);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-slate-300);
+}
