@@ -39,6 +39,7 @@ import { CountryData, Indicator, INDICATORS, ViewMode, SP_OUTCOMES } from './typ
 import { WCA_COUNTRIES } from './data';
 import MapChart from './components/MapChart';
 import Dashboard from './components/Dashboard';
+import AnalyticsView from './components/analytics/AnalyticsView';
 import AnalysisPanel from './components/AnalysisPanel';
 import DataTable from './components/DataTable';
 import StrategicBriefingModal from './components/StrategicBriefingModal';
@@ -149,8 +150,8 @@ export default function App() {
   return (
     <div className={cn(
       "grid grid-rows-[64px_1fr] h-screen overflow-hidden bg-main-bg font-sans",
-      (viewMode === 'stage' || viewMode === 'analytics' || viewMode === 'table') 
-        ? "grid-cols-[240px_1fr_320px]" 
+      (viewMode === 'stage' || viewMode === 'table')
+        ? "grid-cols-[240px_1fr_320px]"
         : "grid-cols-[240px_1fr]"
     )}>
       {/* Header */}
@@ -317,9 +318,9 @@ export default function App() {
       {/* Main Content */}
       <main className={cn(
         "flex flex-col p-6 gap-6 bg-[#fcfdfe] overflow-hidden",
-        (viewMode === 'quantum' || viewMode === 'political' || (viewMode as any) === 'flux' || viewMode === 'sp-alignment' || viewMode === 'irrf-tracking' || viewMode === 'user-management' || viewMode === 'profile' || viewMode === 'dynamics' || viewMode === 'about-geospatial') && "p-0"
+        (viewMode === 'quantum' || viewMode === 'political' || (viewMode as any) === 'flux' || viewMode === 'sp-alignment' || viewMode === 'irrf-tracking' || viewMode === 'user-management' || viewMode === 'profile' || viewMode === 'dynamics' || viewMode === 'about-geospatial' || viewMode === 'analytics') && "p-0"
       )}>
-        {(viewMode === 'stage' || viewMode === 'analytics' || viewMode === 'table') ? (
+        {(viewMode === 'stage' || viewMode === 'table') ? (
           <>
             <div className="flex justify-between items-start shrink-0 p-0">
               <div className="max-w-xl">
@@ -583,6 +584,8 @@ export default function App() {
           </AnimatePresence>
         </div>
         </>
+        ) : viewMode === 'analytics' ? (
+          <AnalyticsView />
         ) : viewMode === 'about-geospatial' ? (
           <AboutGeospatialPlatform />
         ) : viewMode === 'quantum' ? (
@@ -605,7 +608,7 @@ export default function App() {
       </main>
 
       {/* Stats/Analysis Panel - Only visible in core dashboard views */}
-      {(viewMode === 'stage' || viewMode === 'analytics' || viewMode === 'table') && (
+      {(viewMode === 'stage' || viewMode === 'table') && (
         <aside className="bg-white border-l border-card-border p-6 flex flex-col gap-6 overflow-y-auto w-80">
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-unfpa-blue">

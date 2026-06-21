@@ -82,7 +82,20 @@ const M49 = {
 // PDP "Driver Tables" catalog (hosted feature service) — used to resolve each
 // indicator's country-level data service URL.
 const PDP_DRIVER = 'https://services5.arcgis.com/aQMqya7Haac8J82d/ArcGIS/rest/services/Driver_Tables_6_PROD/FeatureServer';
-const pdpServiceCache = new Map(); // indicator_code → country data service URL
+const pdpServiceCache = new Map(); // indicator_code → Promise<country data service URL | null>
+
+// Resolve (once, de-duped across concurrent callers) the country-level data
+// service URL for a PDP indicator_code via the Driver Tables catalog.
+function getPdpServiceUrl(code) {
+  if (!pdpServiceCache.has(code)) {
+    const where = `indicator_code='${code}' AND geo_level='Country (geolev0)'`;
+    const p = getJSON(
+      `${PDP_DRIVER}/2/query?where=${encodeURIComponent(where)}&outFields=url&returnGeometry=false&f=json`,
+    ).then((cat) => cat?.features?.[0]?.attributes?.url ?? null);
+    pdpServiceCache.set(code, p);
+  }
+  return pdpServiceCache.get(code);
+}
 
 // ISO3 → DHS 2-letter country code (TODO: complete/verify all 24 against DHS API).
 const DHS_COUNTRY = {
@@ -117,6 +130,22 @@ function loadSeed() {
   return seed;
 }
 
+// --- Catalog loader (single source of truth: src/data/indicatorCatalog.ts) ----
+// The full analytics catalog is keyed by PDP indicator_code. We extract every
+// `code: '...'` so the catalog and the ingestion never drift apart.
+const CATALOG_TS = resolve(ROOT, 'src/data/indicatorCatalog.ts');
+function loadCatalogCodes() {
+  const txt = readFileSync(CATALOG_TS, 'utf8');
+  const codes = [...txt.matchAll(/code:\s*'([^']+)'/g)].map((m) => m[1]);
+  return [...new Set(codes)];
+}
+
+// PDP codes that also have a SIGA seed + alternative-source fallback chain.
+const LEGACY_BY_CODE = {
+  '37.1': 'unmetNeed', '33.1': 'mCPR', '36.1': 'demandSatisfied',
+  '52': 'mmr', '26': 'adolescentBirthRate', '193': 'gbvPrevalence',
+};
+
 // --- Network helpers ---------------------------------------------------------
 async function getJSON(url) {
   const ctrl = new AbortController();
@@ -146,17 +175,7 @@ const FETCHERS = {
     const m49 = M49[iso3];
     if (!code || !m49) return null;
 
-    // Resolve (and cache) the per-indicator country data service URL.
-    let serviceUrl = pdpServiceCache.get(code);
-    if (serviceUrl === undefined) {
-      const where = `indicator_code='${code}' AND geo_level='Country (geolev0)'`;
-      const cat = await getJSON(
-        `${PDP_DRIVER}/2/query?where=${encodeURIComponent(where)}` +
-          `&outFields=url&returnGeometry=false&f=json`,
-      );
-      serviceUrl = cat?.features?.[0]?.attributes?.url ?? null;
-      pdpServiceCache.set(code, serviceUrl);
-    }
+    const serviceUrl = await getPdpServiceUrl(code);
     if (!serviceUrl) return null;
 
     const where = `m49_code='${m49}' AND year<='${CURRENT_YEAR}'`;
@@ -261,20 +280,37 @@ async function resolveIndicator(iso3, key, cfg, seedValue) {
 async function main() {
   const seed = loadSeed();
   const isos = Object.keys(seed);
-  const indicatorKeys = Object.keys(INDICATOR_CONFIG);
+  const codes = loadCatalogCodes();   // full PDP analytics catalog, keyed by code
   const values = {};
+  for (const iso3 of isos) values[iso3] = {};
   const sourcesUsed = new Set();
 
-  for (const iso3 of isos) {
-    values[iso3] = {};
-    for (const key of indicatorKeys) {
-      const cfg = INDICATOR_CONFIG[key];
-      const seedValue = seed[iso3]?.[cfg.seedField] ?? null;
-      const iv = await resolveIndicator(iso3, key, cfg, seedValue);
-      values[iso3][key] = iv;
-      sourcesUsed.add(iv.source);
-    }
+  // One indicator at a time, all 24 countries in parallel (service URL resolved
+  // once per code). Legacy codes use the full PDP→DHS/WHO→seed resolution chain;
+  // the rest are PDP-only (null when PDP has no observation).
+  for (const code of codes) {
+    const legacyKey = LEGACY_BY_CODE[code];
+    await Promise.all(
+      isos.map(async (iso3) => {
+        let iv;
+        if (legacyKey) {
+          const cfg = INDICATOR_CONFIG[legacyKey];
+          iv = await resolveIndicator(iso3, legacyKey, cfg, seed[iso3]?.[cfg.seedField] ?? null);
+        } else if (LIVE) {
+          const r = await FETCHERS['UNFPA PDP'](iso3, code, { codes: { 'UNFPA PDP': code } });
+          iv = r
+            ? makeValue(r.value, 'UNFPA PDP', r.referenceYear, false)
+            : makeValue(null, 'SIGA baseline (seed)', null, true);
+        } else {
+          iv = makeValue(seed[iso3]?.[legacyKey] ?? null, 'SIGA baseline (seed)', BASELINE_YEAR, true);
+        }
+        values[iso3][code] = iv;
+        sourcesUsed.add(iv.source);
+      }),
+    );
+    process.stdout.write('.');
   }
+  process.stdout.write('\n');
 
   const snapshot = {
     revision: {
@@ -284,7 +320,7 @@ async function main() {
       staleThresholdYears: STALE_THRESHOLD_YEARS,
       sourcesUsed: [...sourcesUsed],
       countryCount: isos.length,
-      indicatorKeys,
+      indicatorKeys: codes,
     },
     values,
   };
@@ -293,7 +329,7 @@ async function main() {
   writeFileSync(OUT, JSON.stringify(snapshot, null, 2) + '\n');
   console.log(
     `[ingest] mode=${LIVE ? 'live' : 'offline(seed)'} → ${OUT}\n` +
-      `[ingest] ${isos.length} countries × ${indicatorKeys.length} indicators · sources: ${[...sourcesUsed].join(', ')}`,
+      `[ingest] ${isos.length} countries × ${codes.length} indicators · sources: ${[...sourcesUsed].join(', ')}`,
   );
 }
 

@@ -224,11 +224,11 @@ export interface IndicatorRevision {
   staleThresholdYears: number;
   sourcesUsed: DataSource[];
   countryCount: number;
-  indicatorKeys: Indicator[];
+  indicatorKeys: string[]; // PDP indicator codes covered by this revision
 }
 
-/** The full generated snapshot: revision header + values[iso3][indicatorKey]. */
+/** The full generated snapshot: revision header + values[iso3][pdpCode]. */
 export interface IndicatorSnapshot {
   revision: IndicatorRevision;
-  values: Record<string, Partial<Record<Indicator, IndicatorValue>>>;
+  values: Record<string, Record<string, IndicatorValue>>;
 }

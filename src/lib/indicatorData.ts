@@ -23,6 +23,16 @@ const SEED_FIELD: Partial<Record<Indicator, keyof CountryData>> = {
   gbvPrevalence: 'gbvPrevalence',
 };
 
+// Legacy SIGA indicator key → PDP indicator_code (the snapshot is keyed by code).
+const LEGACY_KEY_TO_CODE: Partial<Record<Indicator, string>> = {
+  unmetNeed: '37.1',
+  mCPR: '33.1',
+  demandSatisfied: '36.1',
+  mmr: '52',
+  adolescentBirthRate: '26',
+  gbvPrevalence: '193',
+};
+
 // Generated snapshot (committed; produced by `npm run ingest`). Statically
 // imported so it's bundled at build time — no runtime fetch, no top-level await.
 // Value-level seed fallback below covers any indicator the snapshot omits.
@@ -46,9 +56,34 @@ function seedValue(iso3: string, key: Indicator): IndicatorValue {
   };
 }
 
-/** Fully-attributed value for one country + indicator (generated → seed fallback). */
+/** Empty/unknown value for a code that the snapshot doesn't cover. */
+function emptyValue(): IndicatorValue {
+  return {
+    value: null,
+    source: 'SIGA baseline (seed)',
+    sourceUrl: 'https://pdp.unfpa.org/',
+    referenceYear: null,
+    fetchedAt: '',
+    isStale: false,
+    fallbackUsed: true,
+  };
+}
+
+/** Fully-attributed value for a raw PDP indicator_code (used by Analytics). */
+export function getValueByCode(iso3: string, code: string): IndicatorValue {
+  return snapshot?.values?.[iso3]?.[code] ?? emptyValue();
+}
+
+/** All countries' attributed values for one PDP code. */
+export function getSeriesByCode(code: string): Array<{ iso3: string } & IndicatorValue> {
+  return WCA_COUNTRIES.map((c) => ({ iso3: c.id, ...getValueByCode(c.id, code) }));
+}
+
+/** Fully-attributed value for one country + legacy indicator (generated → seed fallback). */
 export function getIndicatorValue(iso3: string, key: Indicator): IndicatorValue {
-  return snapshot?.values?.[iso3]?.[key] ?? seedValue(iso3, key);
+  const code = LEGACY_KEY_TO_CODE[key];
+  const fromSnapshot = code ? snapshot?.values?.[iso3]?.[code] : undefined;
+  return fromSnapshot ?? seedValue(iso3, key);
 }
 
 /** Plain numeric value (or null) — convenience for charts/maps. */
