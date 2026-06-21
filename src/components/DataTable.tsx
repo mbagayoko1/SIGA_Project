@@ -3,6 +3,11 @@ import { CountryData, Indicator, INDICATORS } from '../types';
 import { WCA_COUNTRIES } from '../data';
 import { ChevronUp, ChevronDown, Download, Users, Heart, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getIndicatorValue, getRevision } from '../lib/indicatorData';
+import SourceBadge from './quantum/SourceBadge';
+
+// Indicators with multi-source provenance (Outcomes 1–3). Others fall back to seed only.
+const ATTRIBUTED = new Set<Indicator>(['unmetNeed', 'mCPR', 'demandSatisfied', 'mmr', 'adolescentBirthRate', 'gbvPrevalence']);
 
 interface Props {
   selectedIndicators: Indicator[];
@@ -15,6 +20,7 @@ type SortField = keyof CountryData;
 export default function DataTable({ selectedIndicators, selectedCountries, onToggleCountry }: Props) {
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const rev = getRevision();
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -60,17 +66,25 @@ export default function DataTable({ selectedIndicators, selectedCountries, onTog
         <button 
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-unfpa-blue transition-colors shadow-sm"
           onClick={() => {
-            const indicatorHeaders = selectedIndicators.map(id => `"${INDICATORS[id].label} (${INDICATORS[id].unit})"`);
+            // For attributed indicators, emit value + Source + Year columns; others, value only.
+            const indicatorHeaders = selectedIndicators.flatMap(id =>
+              ATTRIBUTED.has(id)
+                ? [`"${INDICATORS[id].label} (${INDICATORS[id].unit})"`, `"${INDICATORS[id].label} Source"`, `"${INDICATORS[id].label} Year"`]
+                : [`"${INDICATORS[id].label} (${INDICATORS[id].unit})"`]);
             const headers = ['Country', 'Region', 'Selection Status', 'Population (M)', ...indicatorHeaders].join(',');
-            
+
             const rows = sortedData.map(c => {
               const isSelected = selectedCountries.some(sc => sc.id === c.id) ? 'Selected' : 'Not Selected';
               return [
-                `"${c.name}"`, 
+                `"${c.name}"`,
                 `"${c.region}"`,
                 `"${isSelected}"`,
-                c.population, 
-                ...selectedIndicators.map(id => c[id])
+                c.population,
+                ...selectedIndicators.flatMap(id => {
+                  if (!ATTRIBUTED.has(id)) return [c[id]];
+                  const v = getIndicatorValue(c.id, id);
+                  return [v.value ?? c[id], `"${v.source}"`, v.referenceYear ?? ''];
+                })
               ].join(',');
             }).join('\n');
             
@@ -143,17 +157,24 @@ export default function DataTable({ selectedIndicators, selectedCountries, onTog
                   {selectedIndicators.map(id => {
                     const indicator = INDICATORS[id];
                     if (!indicator) return <td key={id} className="p-4">-</td>;
+                    const attributed = ATTRIBUTED.has(id);
+                    const prov = attributed ? getIndicatorValue(country.id, id) : null;
                     return (
                       <td key={id} className="p-4">
                         <div className="flex items-center gap-2">
-                           <div 
-                            className="w-1.5 h-1.5 rounded-full" 
+                           <div
+                            className="w-1.5 h-1.5 rounded-full"
                             style={{ backgroundColor: indicator.colorRange[1] }}
                           />
                           <span className="font-mono text-xs font-black text-text-main">
                             {country[id]}{indicator.unit?.replace('per ', '/') || ''}
                           </span>
                         </div>
+                        {prov && (
+                          <div className="mt-1.5">
+                            <SourceBadge value={prov} showFreshness={false} className="!text-[9px] !px-1.5 !py-0" />
+                          </div>
+                        )}
                       </td>
                     );
                   })}
@@ -193,11 +214,20 @@ export default function DataTable({ selectedIndicators, selectedCountries, onTog
             </span>
           </div>
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Source: UNFPA Population Data Portal</p>
-          <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
-            <AlertTriangle className="w-3 h-3" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Crisis Hotspots: {WCA_COUNTRIES.filter(c => c.crisisLevel >= 4).length}</span>
+        <div className="flex flex-col items-end gap-1">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+            Primary: UNFPA PDP · fallbacks: DHS · WHO · UN WPP
+          </p>
+          <div className="flex items-center gap-2">
+            {rev?.generatedAt && (
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                Revised {new Date(rev.generatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+            )}
+            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
+              <AlertTriangle className="w-3 h-3" />
+              <span className="text-[9px] font-black uppercase tracking-widest">Crisis Hotspots: {WCA_COUNTRIES.filter(c => c.crisisLevel >= 4).length}</span>
+            </div>
           </div>
         </div>
       </div>

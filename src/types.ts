@@ -189,3 +189,46 @@ export const SP_OUTCOMES: Record<SPOutcome, SPOutcomeMeta> = {
     color: '#7C3AED',
   },
 };
+
+/* ============================================================================
+ * Live indicator data provenance (multi-source ingestion)
+ * Populated by scripts/ingest-indicators.mjs → src/data/indicators.generated.json
+ * Consumed via src/lib/indicatorData.ts. See prompts/indicator-ingestion.md.
+ * ==========================================================================*/
+
+/** Recognised upstream data sources, in rough order of authority for SP indicators. */
+export type DataSource =
+  | 'UNFPA PDP'           // PRIMARY — https://pdp.unfpa.org
+  | 'DHS'                 // https://dhsprogram.com  (STATcompiler REST)
+  | 'WHO GHO'             // https://www.who.int/data/gho  (OData)
+  | 'UN WPP'              // https://population.un.org/wpp  (Data Portal API)
+  | 'GDELT'               // https://www.gdeltproject.org  (context/crisis signal only)
+  | 'SIGA baseline (seed)'; // offline fallback from src/data.ts WCA_COUNTRIES
+
+/** A single indicator reading for one country, with full provenance. */
+export interface IndicatorValue {
+  value: number | null;
+  source: DataSource;
+  sourceUrl: string;
+  referenceYear: number | null; // year the upstream figure refers to
+  fetchedAt: string;            // ISO timestamp of ingestion
+  isStale: boolean;             // referenceYear older than the freshness threshold
+  fallbackUsed: boolean;        // true when PDP (primary) was bypassed
+}
+
+/** Top-level metadata describing one ingestion run. */
+export interface IndicatorRevision {
+  generatedAt: string;
+  currentYear: number;
+  primarySource: DataSource;
+  staleThresholdYears: number;
+  sourcesUsed: DataSource[];
+  countryCount: number;
+  indicatorKeys: Indicator[];
+}
+
+/** The full generated snapshot: revision header + values[iso3][indicatorKey]. */
+export interface IndicatorSnapshot {
+  revision: IndicatorRevision;
+  values: Record<string, Partial<Record<Indicator, IndicatorValue>>>;
+}

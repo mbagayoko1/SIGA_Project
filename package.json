@@ -8,7 +8,9 @@
     "build": "vite build --outDir dist --emptyOutDir",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "ingest": "node scripts/ingest-indicators.mjs",
+    "ingest:live": "node scripts/ingest-indicators.mjs --live"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

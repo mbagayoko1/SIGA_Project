@@ -21,27 +21,30 @@ import {
   Network
 } from 'lucide-react';
 import HeroGeoMotif from './quantum/HeroGeoMotif';
+import DataRevisionPanel from './quantum/DataRevisionPanel';
 
 export default function AboutGeospatialPlatform() {
+  // Indicator catalog mirrors the live UNFPA Population Data Portal (pdp.unfpa.org).
+  // `source` shows the PDP indicator_code now pulled by the ingestion pipeline.
   const outcomes = [
     {
       id: "Outcome 1",
       title: "Family Planning",
       color: "blue",
       metrics: [
-        { name: "Modern Contraceptive Prevalence (mCPR)", source: "DHS, MICS, PMA, Track20" },
-        { name: "Unmet Need for Family Planning", source: "DHS Program, Track20" },
-        { name: "Demand Satisfied with Modern Methods", source: "UN Population Division" }
+        { name: "Contraceptive prevalence rate, modern methods, all women", source: "UNFPA PDP · code 33.1" },
+        { name: "Unmet need for family planning, all women", source: "UNFPA PDP · code 37.1" },
+        { name: "Demand for family planning satisfied by modern methods", source: "UNFPA PDP · code 36.1 (SDG 3.7.1)" }
       ]
     },
     {
       id: "Outcome 2",
-      title: "Maternal Health",
+      title: "Maternal & Newborn Health",
       color: "rose",
       metrics: [
-        { name: "Maternal Mortality Ratio (MMR)", source: "UN MMEIG (WHO/UNICEF/UNFPA)" },
-        { name: "Skilled Birth Attendance Rate", source: "DHS, WHO Global Health Observatory" },
-        { name: "EmONC Service Coverage", source: "Regional EmONC Facility Assessments" }
+        { name: "Maternal mortality ratio", source: "UNFPA PDP · code 52 (UN MMEIG)" },
+        { name: "Adolescent birth rate", source: "UNFPA PDP · code 26 / WHO GHO fallback" },
+        { name: "Skilled birth attendance rate", source: "WHO GHO · MDG_0000000025" }
       ]
     },
     {
@@ -49,9 +52,9 @@ export default function AboutGeospatialPlatform() {
       title: "GBV & Harmful Practices",
       color: "orange",
       metrics: [
-        { name: "Intimate Partner Violence Prevalence", source: "DHS Specialized Modules" },
-        { name: "FGM/C Prevalence (Ages 15-49)", source: "UNICEF, DHS Program" },
-        { name: "Child Marriage Percentage", source: "UNICEF Data, DHS" }
+        { name: "Intimate partner violence, lifetime", source: "UNFPA PDP · code 193 (DHS)" },
+        { name: "Intimate partner violence, past 12 months", source: "UNFPA PDP · code 176 (SDG 5.2.1)" },
+        { name: "Child marriage (married before age 18)", source: "UNFPA PDP / UNICEF · DHS" }
       ]
     },
     {
@@ -59,9 +62,9 @@ export default function AboutGeospatialPlatform() {
       title: "Demographic Resilience",
       color: "purple",
       metrics: [
-        { name: "Adolescent Birth Rate", source: "UN World Population Prospects" },
-        { name: "Human Capital Index (Regional Adjustment)", source: "World Bank, UNFPA Framework" },
-        { name: "Urban/Rural Service Gap Index", source: "UN Habitat, Geospatial Analysis" }
+        { name: "Population dynamics & sustainable development", source: "UN World Population Prospects" },
+        { name: "Crisis & displacement context", source: "GDELT signal / IOM DTM" },
+        { name: "Census round completion", source: "UNFPA / UNSD" }
       ]
     }
   ];
@@ -85,51 +88,52 @@ export default function AboutGeospatialPlatform() {
   ];
 
   const indicators = [
-    { 
-      name: "Maternal Mortality Ratio (MMR)", 
-      source: "UN MMEIG (WHO/UNICEF/UNFPA)", 
-      calculation: "Maternal deaths per 100,000 live births", 
-      analysis: "Spatial Hotspot Mapping & Trend Regression" 
+    {
+      name: "Maternal Mortality Ratio",
+      source: "UNFPA PDP · code 52 (UN MMEIG)",
+      calculation: "Maternal deaths per 100,000 live births",
+      analysis: "Spatial Hotspot Mapping & Trend Regression"
     },
-    { 
-      name: "Modern Contraceptive Prevalence (mCPR)", 
-      source: "DHS, MICS, PMA Data", 
-      calculation: "% of women using modern contraception", 
-      analysis: "Bivariate Spatial Analysis & Projection" 
+    {
+      name: "Contraceptive Prevalence, Modern Methods",
+      source: "UNFPA PDP · code 33.1",
+      calculation: "% of all women using modern contraception",
+      analysis: "Bivariate Spatial Analysis & Projection"
     },
-    { 
-      name: "Unmet Need for Family Planning", 
-      source: "Track20 & DHS Program", 
-      calculation: "% of women wanting to avoid pregnancy but not using contraception", 
-      analysis: "Gap Identification & Access Analysis" 
+    {
+      name: "Unmet Need for Family Planning",
+      source: "UNFPA PDP · code 37.1",
+      calculation: "% of women wanting to avoid pregnancy but not using contraception",
+      analysis: "Gap Identification & Access Analysis"
     },
-    { 
-      name: "GBV Prevalence", 
-      source: "DHS & Specialized Surveys", 
-      calculation: "% of women experiencing physical/sexual violence", 
-      analysis: "Prevalence Clustering & Risk Density" 
+    {
+      name: "Demand Satisfied, Modern Methods",
+      source: "UNFPA PDP · code 36.1 (SDG 3.7.1)",
+      calculation: "% of FP demand met with modern methods",
+      analysis: "Coverage Convergence Analysis"
     },
-    { 
-      name: "Adolescent Birth Rate", 
-      source: "UN Population Division", 
-      calculation: "Births per 1,000 women aged 15-19", 
-      analysis: "Demographic Dividend Impact Modeling" 
+    {
+      name: "Intimate Partner Violence, Lifetime",
+      source: "UNFPA PDP · code 193 (DHS) → DHS fallback",
+      calculation: "% of women experiencing lifetime physical/sexual IPV",
+      analysis: "Prevalence Clustering & Risk Density"
     },
-    { 
-      name: "Demographic Resilience Index", 
-      source: "UNFPA WCA Framework", 
-      calculation: "Multi-variable weighted composite score (0-100)", 
-      analysis: "Resilience Capacity Scoring" 
+    {
+      name: "Adolescent Birth Rate",
+      source: "UNFPA PDP · code 26 → WHO GHO fallback",
+      calculation: "Births per 1,000 women aged 15-19",
+      analysis: "Demographic Dividend Impact Modeling"
     },
-    { 
-      name: "Crisis Hotspot Index", 
-      source: "ACLED / GDELT / IOM DTM", 
-      calculation: "Weighted index of conflict, climate, and displacement data", 
-      analysis: "Real-time Crisis Vector Mapping" 
+    {
+      name: "Crisis Hotspot Index",
+      source: "GDELT signal / IOM DTM (context only)",
+      calculation: "Weighted index of conflict, climate, and displacement data",
+      analysis: "Real-time Crisis Vector Mapping"
     }
   ];
 
   const verificationSources = [
+    { name: "UNFPA Population Data Portal (Primary SP Indicator Source)", category: "Primary Source", url: "https://pdp.unfpa.org/" },
     { name: "UN World Population Prospects (2024 Revision)", category: "Demographics", url: "https://population.un.org/wpp/" },
     { name: "UNFPA WCA Regional Demographic Resilience Framework", category: "Strategy", url: "https://wca.unfpa.org/en/publications/demographic-resilience-framework" },
     { name: "GDELT Project (Global Database of Events, Language, and Tone)", category: "Crisis Mapping", url: "https://www.gdeltproject.org/" },
@@ -185,6 +189,9 @@ export default function AboutGeospatialPlatform() {
             </div>
           </div>
         </div>
+
+        {/* Data Revision & Sources (live multi-source provenance) */}
+        <DataRevisionPanel />
 
         {/* Objectives Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
