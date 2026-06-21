@@ -21,8 +21,15 @@ function fmt(n: number | null, unit: string): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-const AnalyticsView: React.FC = () => {
-  const [code, setCode] = useState('52'); // default: Maternal mortality ratio
+interface AnalyticsViewProps {
+  code?: string;
+  onCodeChange?: (code: string) => void;
+}
+
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeChange }) => {
+  const [internalCode, setInternalCode] = useState('52');
+  const code = codeProp ?? internalCode;
+  const setCode = (c: string) => { onCodeChange ? onCodeChange(c) : setInternalCode(c); };
   const meta = CATALOG_BY_CODE[code];
   const revision = getRevision();
 

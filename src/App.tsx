@@ -40,6 +40,7 @@ import { WCA_COUNTRIES } from './data';
 import MapChart from './components/MapChart';
 import Dashboard from './components/Dashboard';
 import AnalyticsView from './components/analytics/AnalyticsView';
+import { INDICATOR_CATALOG } from './data/indicatorCatalog';
 import AnalysisPanel from './components/AnalysisPanel';
 import DataTable from './components/DataTable';
 import StrategicBriefingModal from './components/StrategicBriefingModal';
@@ -70,6 +71,14 @@ export default function App() {
   const [showCountrySelector, setShowCountrySelector] = useState(false);
   const [showIndicatorSelector, setShowIndicatorSelector] = useState(false);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+  // Analytics selection (PDP indicator_code) + which Outcome/domain is expanded in the sidebar.
+  const [analyticsCode, setAnalyticsCode] = useState('37.1'); // Unmet need for family planning
+  const [openSidebarDomain, setOpenSidebarDomain] = useState<string | null>(INDICATOR_CATALOG[0].domain);
+  const selectIndicatorCode = (code: string, domain: string) => {
+    setAnalyticsCode(code);
+    setOpenSidebarDomain(domain);
+    setViewMode('analytics');
+  };
   const moduleAccess = useModuleAccess();
   const en = (k: ViewMode) => userCanAccess(k, profile, moduleAccess);
 
@@ -282,37 +291,48 @@ export default function App() {
           className="pointer-events-none absolute inset-0 opacity-[0.05]"
           style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.8) 1px, transparent 1px)', backgroundSize: '42px 42px' }}
         />
-        {Object.values(SP_OUTCOMES).map((outcome) => (
-          <div key={outcome.id} className="relative z-10">
-            <p className="text-[10px] whitespace-nowrap overflow-hidden text-ellipsis uppercase tracking-[0.18em] text-white/60 font-bold mb-3 flex items-center gap-2" title={outcome.label}>
-              <span className="w-2 h-2 rounded-full shrink-0 ring-2 ring-white/20" style={{ background: outcome.color }} />
-              {outcome.label.split(':')[0]}
-            </p>
-            <div className="flex flex-col">
-              {outcome.indicators.map((indicatorId) => (
-                <SidebarLink
-                  key={indicatorId}
-                  active={selectedIndicators.includes(indicatorId)}
-                  onClick={() => toggleIndicator(indicatorId)}
-                  icon={
-                    indicatorId === 'mmr' ? <Activity className="w-4 h-4" /> :
-                    indicatorId === 'unmetNeed' ? <AlertTriangle className="w-4 h-4" /> :
-                    indicatorId === 'gbvPrevalence' ? <ShieldAlert className="w-4 h-4" /> :
-                    indicatorId === 'mCPR' ? <Users className="w-4 h-4" /> :
-                    indicatorId === 'demandSatisfied' ? <Check className="w-4 h-4" /> :
-                    indicatorId === 'adolescentBirthRate' ? <Baby className="w-4 h-4" /> :
-                    indicatorId === 'demographicDynamics' ? <CircleDot className="w-4 h-4" /> :
-                    indicatorId === 'idpCount' ? <UsersRound className="w-4 h-4" /> :
-                    indicatorId === 'refugeeCount' ? <Globe2 className="w-4 h-4" /> :
-                    <Activity className="w-4 h-4" />
-                  }
-                >
-                  {INDICATORS[indicatorId].label}
-                </SidebarLink>
-              ))}
+        {INDICATOR_CATALOG.map((domain) => {
+          const isOpen = openSidebarDomain === domain.domain;
+          const outcomeTag = domain.outcomeLabel.split(' · ')[0];
+          return (
+            <div key={domain.domain} className="relative z-10">
+              {/* Outcome · Domain header (collapsible) */}
+              <button
+                onClick={() => setOpenSidebarDomain(isOpen ? null : domain.domain)}
+                className="w-full flex items-center gap-2 mb-2 group"
+                title={domain.outcomeLabel}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0 ring-2 ring-white/20" style={{ background: domain.color }} />
+                <span className="flex-1 text-left min-w-0">
+                  <span className="block text-[9px] uppercase tracking-[0.18em] text-white/45 font-bold leading-tight">{outcomeTag}</span>
+                  <span className="block text-[12px] font-bold text-white/90 truncate">{domain.domain}</span>
+                </span>
+                <ChevronDown className={cn('w-3.5 h-3.5 text-white/50 transition-transform shrink-0', !isOpen && '-rotate-90')} />
+              </button>
+
+              {/* Sub-domains → indicators */}
+              {isOpen && (
+                <div className="flex flex-col gap-1 mb-2">
+                  {domain.subdomains.map((sub) => (
+                    <div key={sub.name}>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/40 px-2.5 pt-2 pb-1">{sub.name}</p>
+                      {sub.indicators.map((ind) => (
+                        <SidebarLink
+                          key={ind.code}
+                          active={analyticsCode === ind.code}
+                          onClick={() => selectIndicatorCode(ind.code, domain.domain)}
+                          icon={<CircleDot className="w-4 h-4" />}
+                        >
+                          {ind.short}
+                        </SidebarLink>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </aside>
 
       {/* Main Content */}
@@ -585,7 +605,7 @@ export default function App() {
         </div>
         </>
         ) : viewMode === 'analytics' ? (
-          <AnalyticsView />
+          <AnalyticsView code={analyticsCode} onCodeChange={setAnalyticsCode} />
         ) : viewMode === 'about-geospatial' ? (
           <AboutGeospatialPlatform />
         ) : viewMode === 'quantum' ? (
