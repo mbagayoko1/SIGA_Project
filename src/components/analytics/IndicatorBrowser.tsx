@@ -12,16 +12,23 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 interface Props {
-  selectedCode: string;
-  onSelect: (code: string) => void;
+  // single-select (Stage)
+  selectedCode?: string;
+  onSelect?: (code: string) => void;
+  // multi-select (Analytics cross-outcome)
+  mode?: 'single' | 'multi';
+  selectedCodes?: string[];
+  onToggle?: (code: string) => void;
 }
 
-const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect }) => {
+const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'single', selectedCodes = [], onToggle }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [openDomain, setOpenDomain] = useState<string | null>(INDICATOR_CATALOG[0].domain);
 
+  const multi = mode === 'multi';
   const active = ALL_CATALOG_INDICATORS.find((i) => i.code === selectedCode);
+  const isSel = (code: string) => (multi ? selectedCodes.includes(code) : selectedCode === code);
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -32,7 +39,11 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect }) => {
     );
   }, [query]);
 
-  const pick = (code: string) => { onSelect(code); setOpen(false); setQuery(''); };
+  // single → select & close; multi → toggle & stay open for cross-outcome building
+  const pick = (code: string) => {
+    if (multi) { onToggle?.(code); return; }
+    onSelect?.(code); setOpen(false); setQuery('');
+  };
 
   return (
     <div className="relative">
@@ -45,8 +56,19 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect }) => {
           <Layers className="w-4 h-4" />
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">{active?.domain ?? 'Indicator'} · {active?.subdomain ?? ''}</span>
-          <span className="block text-[13px] font-bold text-text-main truncate">{active?.short ?? 'Select indicator'}</span>
+          {multi ? (
+            <>
+              <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cross-outcome selection</span>
+              <span className="block text-[13px] font-bold text-text-main truncate">
+                {selectedCodes.length === 0 ? 'Select indicators' : `${selectedCodes.length} indicator${selectedCodes.length > 1 ? 's' : ''} selected`}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">{active?.domain ?? 'Indicator'} · {active?.subdomain ?? ''}</span>
+              <span className="block text-[13px] font-bold text-text-main truncate">{active?.short ?? 'Select indicator'}</span>
+            </>
+          )}
         </span>
         <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform shrink-0', open && 'rotate-180')} />
       </button>
@@ -88,13 +110,13 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect }) => {
                   )}
                   {searchResults.map((i) => (
                     <button key={i.code} onClick={() => pick(i.code)}
-                      className={cn('w-full text-left px-5 py-2.5 hover:bg-slate-50 flex items-center gap-3', i.code === selectedCode && 'bg-quantum-blue/5')}>
+                      className={cn('w-full text-left px-5 py-2.5 hover:bg-slate-50 flex items-center gap-3', isSel(i.code) && 'bg-quantum-blue/5')}>
                       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: i.color }} />
                       <span className="flex-1 min-w-0">
                         <span className="block text-[13px] font-semibold text-slate-800 truncate">{i.short}</span>
                         <span className="block text-[11px] text-slate-400 truncate">{i.domain} · {i.subdomain} · code {i.code}</span>
                       </span>
-                      {i.code === selectedCode && <Check className="w-4 h-4 text-quantum-blue shrink-0" />}
+                      {isSel(i.code) && <Check className="w-4 h-4 text-quantum-blue shrink-0" />}
                     </button>
                   ))}
                 </div>
@@ -123,10 +145,11 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect }) => {
                                 <p className="px-5 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sub.name}</p>
                                 {sub.indicators.map((i) => (
                                   <button key={i.code} onClick={() => pick(i.code)}
-                                    className={cn('w-full text-left pl-12 pr-5 py-2 hover:bg-slate-50 flex items-center gap-2', i.code === selectedCode && 'bg-quantum-blue/5')}>
+                                    className={cn('w-full text-left pl-12 pr-5 py-2 hover:bg-slate-50 flex items-center gap-2', isSel(i.code) && 'bg-quantum-blue/5')}>
+                                    {multi && <span className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0', isSel(i.code) ? 'bg-quantum-blue border-quantum-blue' : 'border-slate-300')}>{isSel(i.code) && <Check className="w-2.5 h-2.5 text-white" />}</span>}
                                     <span className="flex-1 text-[13px] font-medium text-slate-700 truncate">{i.short}</span>
                                     <span className="text-[10px] text-slate-300 font-mono">{i.code}</span>
-                                    {i.code === selectedCode && <Check className="w-3.5 h-3.5 text-quantum-blue shrink-0" />}
+                                    {!multi && isSel(i.code) && <Check className="w-3.5 h-3.5 text-quantum-blue shrink-0" />}
                                   </button>
                                 ))}
                               </div>
