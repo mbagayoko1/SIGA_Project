@@ -85,8 +85,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeCha
   return (
     <div className="h-full overflow-y-auto custom-scrollbar pr-1 space-y-6 pb-10">
       {/* Header + controls */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-quantum-blue via-quantum-blue-dark to-quantum-blue-darker text-white p-7 lg:p-9">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.7) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.7) 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
+      <div className="relative rounded-3xl bg-gradient-to-br from-quantum-blue via-quantum-blue-dark to-quantum-blue-darker text-white p-7 lg:p-9">
+        <div className="pointer-events-none absolute inset-0 rounded-3xl overflow-hidden opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.7) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.7) 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
         <div className="relative z-10">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70 mb-3">
             <Layers className="w-3.5 h-3.5" /><span>Cross-outcome analytics</span>
