@@ -102,8 +102,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeCha
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-6">
-            <IndicatorBrowser mode="multi" selectedCodes={codes} onToggle={toggleCode} />
-            <CountryFilter selected={countryIds} onChange={setCountryIds} />
+            <IndicatorBrowser mode="multi" selectedCodes={codes} onToggle={toggleCode} align="left" />
+            <CountryFilter selected={countryIds} onChange={setCountryIds} align="left" />
           </div>
 
           {/* Selected indicator chips */}

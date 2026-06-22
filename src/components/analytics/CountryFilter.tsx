@@ -10,9 +10,10 @@ import { WCA_COUNTRIES } from '../../data';
 interface Props {
   selected: string[];                 // ISO3 ids; [] = all
   onChange: (ids: string[]) => void;
+  align?: 'left' | 'right';           // dropdown horizontal anchor (default right)
 }
 
-const CountryFilter: React.FC<Props> = ({ selected, onChange }) => {
+const CountryFilter: React.FC<Props> = ({ selected, onChange, align = 'right' }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -50,7 +51,7 @@ const CountryFilter: React.FC<Props> = ({ selected, onChange }) => {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-[280px] max-h-[440px] bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-300/40 z-40 flex flex-col overflow-hidden">
+          <div className={cn('absolute mt-2 w-[280px] max-h-[440px] bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-300/40 z-40 flex flex-col overflow-hidden', align === 'left' ? 'left-0' : 'right-0')}>
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">Select countries</h3>
               <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700"><X className="w-4 h-4" /></button>

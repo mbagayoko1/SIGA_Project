@@ -19,9 +19,10 @@ interface Props {
   mode?: 'single' | 'multi';
   selectedCodes?: string[];
   onToggle?: (code: string) => void;
+  align?: 'left' | 'right'; // dropdown horizontal anchor (default right)
 }
 
-const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'single', selectedCodes = [], onToggle }) => {
+const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'single', selectedCodes = [], onToggle, align = 'right' }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [openDomain, setOpenDomain] = useState<string | null>(INDICATOR_CATALOG[0].domain);
@@ -76,7 +77,7 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'sin
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-[420px] max-h-[560px] bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-300/40 z-40 flex flex-col overflow-hidden">
+          <div className={cn('absolute mt-2 w-[420px] max-h-[560px] bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-300/40 z-40 flex flex-col overflow-hidden', align === 'left' ? 'left-0' : 'right-0')}>
             {/* Header */}
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900">Indicators</h3>
