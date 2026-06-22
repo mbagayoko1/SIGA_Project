@@ -40,7 +40,8 @@ import { WCA_COUNTRIES } from './data';
 import MapChart from './components/MapChart';
 import Dashboard from './components/Dashboard';
 import AnalyticsView from './components/analytics/AnalyticsView';
-import { INDICATOR_CATALOG } from './data/indicatorCatalog';
+import IndicatorBrowser from './components/analytics/IndicatorBrowser';
+import { INDICATOR_CATALOG, CATALOG_BY_CODE } from './data/indicatorCatalog';
 import AnalysisPanel from './components/AnalysisPanel';
 import DataTable from './components/DataTable';
 import StrategicBriefingModal from './components/StrategicBriefingModal';
@@ -73,6 +74,7 @@ export default function App() {
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   // Analytics selection (PDP indicator_code) + which Outcome/domain is expanded in the sidebar.
   const [analyticsCode, setAnalyticsCode] = useState('37.1'); // Unmet need for family planning
+  const [stageCode, setStageCode] = useState('52'); // Stage map indicator (Maternal mortality ratio)
   const [openSidebarDomain, setOpenSidebarDomain] = useState<string | null>(INDICATOR_CATALOG[0].domain);
   const selectIndicatorCode = (code: string, domain: string) => {
     setAnalyticsCode(code);
@@ -345,37 +347,44 @@ export default function App() {
             <div className="flex justify-between items-start shrink-0 p-0">
               <div className="max-w-xl">
             <h2 className="text-[26px] font-bold tracking-tight text-text-main leading-tight">
-              {selectedIndicators.length === 1
-                ? INDICATORS[selectedIndicators[0]].label
-                : `${selectedIndicators.length} Indicators Selected`
+              {viewMode === 'stage'
+                ? (CATALOG_BY_CODE[stageCode]?.name ?? 'Indicator')
+                : (selectedIndicators.length === 1
+                    ? INDICATORS[selectedIndicators[0]].label
+                    : `${selectedIndicators.length} Indicators Selected`)
               }
             </h2>
             <p className="text-sm text-text-muted mt-2 font-medium">
-              {selectedIndicators.length === 1 
-                ? "Cross-border comparative analysis and situational monitoring from the Population Data Portal."
-                : `Comparing ${selectedIndicators.map(id => INDICATORS[id].label).join(', ')} across the WCA region.`
+              {viewMode === 'stage'
+                ? `${CATALOG_BY_CODE[stageCode]?.domain ?? ''} · ${CATALOG_BY_CODE[stageCode]?.subdomain ?? ''} — choropleth across 24 WCA country offices, sourced from the UNFPA Population Data Portal.`
+                : (selectedIndicators.length === 1
+                    ? "Cross-border comparative analysis and situational monitoring from the Population Data Portal."
+                    : `Comparing ${selectedIndicators.map(id => INDICATORS[id].label).join(', ')} across the WCA region.`)
               }
             </p>
           </div>
 
           <div className="flex flex-col items-end gap-3 shrink-0">
             <div className="flex items-center gap-3">
-              {/* Indicator Selector */}
+              {/* Indicator Selector — Stage uses the PDP domain/sub-domain browser */}
+              {viewMode === 'stage' ? (
+                <IndicatorBrowser selectedCode={stageCode} onSelect={setStageCode} />
+              ) : (
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setShowIndicatorSelector(!showIndicatorSelector)}
                   className="bg-white border-2 border-slate-200 px-4 py-2.5 rounded-xl text-xs font-black text-text-main shadow-sm flex items-center gap-3 transition-all hover:border-unfpa-blue min-w-[220px] group uppercase tracking-widest"
                 >
                   <Layers className="w-4 h-4 text-unfpa-blue" />
                   <span className="flex-1 text-left truncate max-w-[140px]">
-                    {selectedIndicators.length === 1 
-                      ? INDICATORS[selectedIndicators[0]].label 
+                    {selectedIndicators.length === 1
+                      ? INDICATORS[selectedIndicators[0]].label
                       : `${selectedIndicators.length} Mixed Metrics`
                     }
                   </span>
                   <ChevronDown className={cn("w-4 h-4 text-text-muted transition-transform", showIndicatorSelector && "rotate-180")} />
                 </button>
-                
+
                 <AnimatePresence>
                   {showIndicatorSelector && (
                     <motion.div 
@@ -455,6 +464,7 @@ export default function App() {
                   )}
                 </AnimatePresence>
               </div>
+              )}
 
               {/* Country Selector */}
               <div className="relative">
@@ -546,8 +556,8 @@ export default function App() {
                 className="absolute inset-0 flex flex-col"
               >
                 <div className="flex-1 min-h-0 flex flex-col">
-                  <MapChart 
-                    selectedIndicators={selectedIndicators} 
+                  <MapChart
+                    code={stageCode}
                     onToggleCountry={toggleCountry}
                     selectedCountryIds={selectedCountries.map(c => c.id)}
                   />

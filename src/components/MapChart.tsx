@@ -6,8 +6,10 @@ import {
   ZoomableGroup,
 } from 'react-simple-maps';
 import { scaleLinear } from 'd3';
-import { CountryData, Indicator, INDICATORS } from '../types';
+import { CountryData } from '../types';
 import { WCA_COUNTRIES } from '../data';
+import { CATALOG_BY_CODE } from '../data/indicatorCatalog';
+import { getValueByCode } from '../lib/indicatorData';
 import { Tooltip } from 'react-tooltip';
 import { Search, ZoomIn, ZoomOut, RotateCcw, AlertTriangle, Layers, Map as MapIcon, X, Check, ChevronDown, Loader2, Download, Eye, EyeOff, FileImage, FileDown } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -55,12 +57,12 @@ const COUNTRY_COORDS: Record<string, [number, number]> = {
 };
 
 interface Props {
-  selectedIndicators: Indicator[];
+  code: string; // PDP indicator_code driving the choropleth
   onToggleCountry: (country: CountryData) => void;
   selectedCountryIds: string[];
 }
 
-export default function MapChart({ selectedIndicators, onToggleCountry, selectedCountryIds }: Props) {
+export default function MapChart({ code, onToggleCountry, selectedCountryIds }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [position, setPosition] = useState({ coordinates: [5, 12] as [number, number], zoom: 1 });
@@ -70,7 +72,6 @@ export default function MapChart({ selectedIndicators, onToggleCountry, selected
   const [showLayerControl, setShowLayerControl] = useState(false);
   const [mapStyle, setMapStyle] = useState<'standard' | 'dark' | 'terrain'>('standard');
   const [overlayOpacity, setOverlayOpacity] = useState(0.85);
-  const [primaryMappingIndex, setPrimaryMappingIndex] = useState(0);
   const [geoData, setGeoData] = useState<any>(null);
   const [isActivating, setIsActivating] = useState(true);
   const [showOnlySelected, setShowOnlySelected] = useState(false);
@@ -106,15 +107,9 @@ export default function MapChart({ selectedIndicators, onToggleCountry, selected
     return () => { mounted = false; };
   }, []);
 
-  // Ensure primary index is valid
-  useEffect(() => {
-    if (primaryMappingIndex >= selectedIndicators.length) {
-      setPrimaryMappingIndex(0);
-    }
-  }, [selectedIndicators, primaryMappingIndex]);
-
-  const activeIndicatorId = selectedIndicators[primaryMappingIndex] || selectedIndicators[0];
-  const indicatorMeta = INDICATORS[activeIndicatorId];
+  const meta = CATALOG_BY_CODE[code];
+  const valueOf = (iso3: string): number | null => getValueByCode(iso3, code).value;
+  const colorRange: [string, string] = ['#e0f2fe', meta?.color ?? '#1C6DB5'];
 
   // Dynamic theme colors
   const theme = useMemo(() => {
@@ -201,18 +196,18 @@ export default function MapChart({ selectedIndicators, onToggleCountry, selected
   }, []);
 
   const stats = useMemo(() => {
-    const values = WCA_COUNTRIES.map(c => c[activeIndicatorId]);
+    const values = WCA_COUNTRIES.map(c => valueOf(c.id)).filter((v): v is number => v != null);
     return {
-      min: Math.min(...values),
-      max: Math.max(...values),
+      min: values.length ? Math.min(...values) : 0,
+      max: values.length ? Math.max(...values) : 1,
     };
-  }, [activeIndicatorId]);
+  }, [code]);
 
   const colorScale = useMemo(() => {
     return scaleLinear<string>()
       .domain([stats.min, stats.max])
-      .range(indicatorMeta.colorRange);
-  }, [stats, indicatorMeta]);
+      .range(colorRange);
+  }, [stats, code]);
 
   // Dynamic Scale based on container width
   const baseScale = useMemo(() => {
@@ -327,38 +322,18 @@ export default function MapChart({ selectedIndicators, onToggleCountry, selected
           Analytics Stage
         </h3>
         
-        {selectedIndicators.length > 1 ? (
-          <div className="mb-3 space-y-1">
-            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Active Mapping:</p>
-            <div className="flex flex-col gap-1">
-              {selectedIndicators.map((id, idx) => (
-                <button 
-                  key={id}
-                  onClick={() => setPrimaryMappingIndex(idx)}
-                  className={cn(
-                    "flex items-center gap-2 px-2 py-1 rounded text-[9px] font-bold text-left transition-colors",
-                    primaryMappingIndex === idx ? "bg-unfpa-blue text-white" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                  )}
-                >
-                  <div className={cn("w-1.5 h-1.5 rounded-full", primaryMappingIndex === idx ? "bg-white" : "bg-slate-300")} />
-                  <span className="truncate">{INDICATORS[id].label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="text-[10px] sm:text-xs font-black text-text-main mb-2 sm:mb-3 truncate">{indicatorMeta.label}</p>
+        {meta && (
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{meta.domain} · {meta.subdomain}</p>
         )}
+        <p className="text-[10px] sm:text-xs font-black text-text-main mb-2 sm:mb-3 truncate max-w-[200px]">{meta?.short ?? 'Indicator'}</p>
 
         <div className="flex items-center gap-2 sm:gap-3">
           <span className="text-[9px] sm:text-[10px] text-text-muted font-bold tabular-nums">{stats.min}</span>
-          <div 
-            className="h-1.5 sm:h-2 w-16 sm:w-32 rounded-full ring-1 ring-black-5" 
-            style={{ 
-              background: `linear-gradient(to right, ${indicatorMeta.colorRange[0]}, ${indicatorMeta.colorRange[1]})` 
-            }} 
+          <div
+            className="h-1.5 sm:h-2 w-16 sm:w-32 rounded-full ring-1 ring-black-5"
+            style={{ background: `linear-gradient(to right, ${colorRange[0]}, ${colorRange[1]})` }}
           />
-          <span className="text-[9px] sm:text-[10px] text-text-muted font-bold tabular-nums">{stats.max}</span>
+          <span className="text-[9px] sm:text-[10px] text-text-muted font-bold tabular-nums">{stats.max}{meta?.unit === '%' ? '%' : ''}</span>
         </div>
       </div>
 
@@ -582,22 +557,23 @@ export default function MapChart({ selectedIndicators, onToggleCountry, selected
                   if (showOnlySelected && isWCA && !isSelected) return null;
                   
                   const isHotspot = showHotspots && countryData && countryData.crisisLevel >= 4;
+                  const cellValue = countryData ? valueOf(countryData.id) : null;
+                  const cellProv = countryData ? getValueByCode(countryData.id, code) : null;
 
-                  const fillColor = isHotspot 
-                    ? "#be123c" 
-                    : (isWCA ? colorScale(countryData![activeIndicatorId]) : theme.land);
+                  const fillColor = isHotspot
+                    ? "#be123c"
+                    : (isWCA && cellValue != null ? colorScale(cellValue) : theme.land);
 
                   const tooltipHtml = countryData ? `
                     <div class="space-y-2">
                       <div class="border-b border-white-10 pb-1 mb-1">
                         <p class="font-black text-xs">${countryData.name}</p>
                       </div>
-                      ${selectedIndicators.map(id => `
-                        <div class="flex items-center justify-between gap-4">
-                          <span class="text-[9px] font-bold text-white-50">${INDICATORS[id].label}:</span>
-                          <span class="text-[9px] font-black">${countryData[id]}${INDICATORS[id].unit}</span>
-                        </div>
-                      `).join('')}
+                      <div class="flex items-center justify-between gap-4">
+                        <span class="text-[9px] font-bold text-white-50">${meta?.short ?? 'Indicator'}:</span>
+                        <span class="text-[9px] font-black">${cellValue != null ? cellValue + (meta?.unit === '%' ? '%' : ' ' + (meta?.unit ?? '')) : 'No data'}</span>
+                      </div>
+                      ${cellProv?.source ? `<div class="flex items-center justify-between gap-4"><span class="text-[8px] font-bold text-white-50">Source:</span><span class="text-[8px] font-black">${cellProv.source}${cellProv.referenceYear ? ' ' + cellProv.referenceYear : ''}</span></div>` : ''}
                       ${isHotspot ? '<p class="text-[8px] text-red-400 font-black mt-2">!!! CRISIS HOTSPOT !!!</p>' : ''}
                     </div>
                   ` : "";
