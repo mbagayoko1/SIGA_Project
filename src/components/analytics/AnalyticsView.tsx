@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ReferenceLine,
-  ScatterChart, Scatter, ZAxis,
+  ScatterChart, Scatter, ZAxis, CartesianGrid, LabelList,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Gauge, Building2, CalendarClock, ArrowUpRight, ArrowDownRight, Info, X, Layers, GitCompareArrows } from 'lucide-react';
 import { WCA_COUNTRIES } from '../../data';
@@ -37,6 +37,29 @@ function perf(value: number, min: number, max: number, inverse?: boolean): numbe
 const perfColor = (p: number) => `hsl(${4 + (138 * p) / 100}, 70%, 92%)`;
 const perfText = (p: number) => `hsl(${4 + (138 * p) / 100}, 60%, 30%)`;
 
+/** Pearson correlation + least-squares line for a set of {x,y} points. */
+function correlate(pts: Array<{ x: number; y: number }>) {
+  const n = pts.length;
+  if (n < 3) return null;
+  const sx = pts.reduce((a, p) => a + p.x, 0);
+  const sy = pts.reduce((a, p) => a + p.y, 0);
+  const sxy = pts.reduce((a, p) => a + p.x * p.y, 0);
+  const sxx = pts.reduce((a, p) => a + p.x * p.x, 0);
+  const syy = pts.reduce((a, p) => a + p.y * p.y, 0);
+  const num = n * sxy - sx * sy;
+  const den = Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
+  const r = den === 0 ? 0 : num / den;
+  const slope = n * sxx - sx * sx === 0 ? 0 : num / (n * sxx - sx * sx);
+  const intercept = (sy - slope * sx) / n;
+  return { r, slope, intercept, meanX: sx / n, meanY: sy / n };
+}
+function strength(r: number) {
+  const a = Math.abs(r);
+  const word = a < 0.2 ? 'negligible' : a < 0.4 ? 'weak' : a < 0.6 ? 'moderate' : a < 0.8 ? 'strong' : 'very strong';
+  const dir = r > 0 ? 'positive' : 'negative';
+  return { word, dir, color: a < 0.2 ? '#94a3b8' : r > 0 ? '#0f766e' : '#b91c1c' };
+}
+
 interface AnalyticsViewProps {
   code?: string;
   onCodeChange?: (code: string) => void;
@@ -62,6 +85,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeCha
       onCodeChange?.(next[0] ?? c);
       return next;
     });
+  };
+  const changeCodes = (next: string[]) => {
+    setCodes(next);
+    onCodeChange?.(next[0] ?? '52');
   };
 
   const activeCountries = useMemo(
@@ -102,7 +129,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeCha
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-6">
-            <IndicatorBrowser mode="multi" selectedCodes={codes} onToggle={toggleCode} align="left" />
+            <IndicatorBrowser mode="multi" selectedCodes={codes} onChange={changeCodes} align="left" />
             <CountryFilter selected={countryIds} onChange={setCountryIds} align="left" />
           </div>
 
@@ -228,9 +255,21 @@ const CrossOutcome: React.FC<{ indicators: any[]; activeCountries: any[]; revisi
     return activeCountries.map((c) => {
       const va = getValueByCode(c.id, a.code).value;
       const vb = getValueByCode(c.id, b.code).value;
-      return va != null && vb != null ? { name: c.name, x: va, y: vb } : null;
-    }).filter(Boolean) as Array<{ name: string; x: number; y: number }>;
+      return va != null && vb != null ? { name: c.name, code3: c.id, region: c.region, x: va, y: vb } : null;
+    }).filter(Boolean) as Array<{ name: string; code3: string; region: string; x: number; y: number }>;
   }, [indicators, activeCountries]);
+  const corr = useMemo(() => (scatter ? correlate(scatter) : null), [scatter]);
+
+  // Sub-analysis: group selected indicators by sub-domain (≥2 = a comparable group).
+  const subGroups = useMemo(() => {
+    const m = new Map<string, any>();
+    indicators.forEach((ind) => {
+      const key = `${ind.meta?.domain} › ${ind.meta?.subdomain}`;
+      if (!m.has(key)) m.set(key, { key, domain: ind.meta?.domain, subdomain: ind.meta?.subdomain, color: ind.meta?.color, items: [] });
+      m.get(key).items.push(ind);
+    });
+    return [...m.values()].filter((g) => g.items.length >= 2);
+  }, [indicators]);
 
   return (
     <>
@@ -247,6 +286,9 @@ const CrossOutcome: React.FC<{ indicators: any[]; activeCountries: any[]; revisi
           </div>
         ))}
       </div>
+
+      {/* Sub-analysis: per-sub-domain composition / comparison */}
+      {subGroups.map((g) => <SubAnalysis key={g.key} group={g} activeCountries={activeCountries} />)}
 
       {/* Performance matrix (cross-outcome heatmap) */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 lg:p-8">
@@ -288,27 +330,130 @@ const CrossOutcome: React.FC<{ indicators: any[]; activeCountries: any[]; revisi
       </div>
 
       {/* Correlation scatter (two indicators) */}
-      {scatter && indicators.length === 2 && (
+      {scatter && indicators.length === 2 && (() => {
+        const a = indicators[0].meta, b = indicators[1].meta;
+        const st = corr ? strength(corr.r) : null;
+        const xs = scatter.map((p) => p.x);
+        const xMin = Math.min(...xs), xMax = Math.max(...xs);
+        const uX = (v: number) => `${fmt(v, a?.unit)}${a?.unit === '%' ? '%' : ` ${a?.unit}`}`;
+        const uY = (v: number) => `${fmt(v, b?.unit)}${b?.unit === '%' ? '%' : ` ${b?.unit}`}`;
+        return (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 lg:p-8">
-          <h2 className="text-lg font-bold text-slate-900 mb-1">Correlation</h2>
-          <p className="text-sm text-slate-500 mb-5">{indicators[0].meta?.short} (x) vs {indicators[1].meta?.short} (y) across {scatter.length} countries.</p>
-          <ResponsiveContainer width="100%" height={360}>
-            <ScatterChart margin={{ left: 8, right: 24, top: 8, bottom: 16 }}>
-              <XAxis type="number" dataKey="x" name={indicators[0].meta?.short} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                label={{ value: `${indicators[0].meta?.short} (${indicators[0].meta?.unit})`, position: 'insideBottom', offset: -8, fontSize: 11, fill: '#64748b' }} />
-              <YAxis type="number" dataKey="y" name={indicators[1].meta?.short} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                label={{ value: indicators[1].meta?.unit, angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b' }} />
-              <ZAxis range={[80, 80]} />
-              <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
-                formatter={(v: number, n: string) => [fmt(v, ''), n]} labelFormatter={() => ''} />
-              <Scatter data={scatter} fill="#1C6DB5" fillOpacity={0.7} />
+          <div className="flex items-start justify-between gap-4 mb-1 flex-wrap">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Correlation</h2>
+              <p className="text-sm text-slate-500">{a?.short} <span className="text-slate-300">(x)</span> vs {b?.short} <span className="text-slate-300">(y)</span> · {scatter.length} countries</p>
+            </div>
+            {corr && st && (
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pearson r</p>
+                  <p className="text-2xl font-bold leading-none" style={{ color: st.color }}>{corr.r >= 0 ? '+' : ''}{corr.r.toFixed(2)}</p>
+                </div>
+                <span className="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide" style={{ background: `${st.color}14`, color: st.color }}>
+                  {st.word} {st.dir}
+                </span>
+              </div>
+            )}
+          </div>
+          {corr && st && (
+            <p className="text-[13px] text-slate-500 mb-4 max-w-3xl">
+              {st.word === 'negligible'
+                ? `No clear linear relationship between ${a?.short} and ${b?.short} across the selected countries.`
+                : `Countries with higher ${a?.short} tend to have ${corr.slope > 0 ? 'higher' : 'lower'} ${b?.short} (${st.word} ${st.dir} association). r² = ${(corr.r * corr.r).toFixed(2)}.`}
+            </p>
+          )}
+          {!corr && <p className="text-[13px] text-slate-400 mb-4">Select at least 3 countries to compute a correlation.</p>}
+          <ResponsiveContainer width="100%" height={400}>
+            <ScatterChart margin={{ left: 12, right: 28, top: 12, bottom: 24 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
+              <XAxis type="number" dataKey="x" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => fmt(v, a?.unit ?? '')}
+                label={{ value: `${a?.short} (${a?.unit})`, position: 'insideBottom', offset: -12, fontSize: 12, fontWeight: 600, fill: '#475569' }} />
+              <YAxis type="number" dataKey="y" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => fmt(v, b?.unit ?? '')}
+                label={{ value: `${b?.short} (${b?.unit})`, angle: -90, position: 'insideLeft', offset: 8, fontSize: 12, fontWeight: 600, fill: '#475569' }} />
+              <ZAxis range={[120, 120]} />
+              {corr && <ReferenceLine x={corr.meanX} stroke="#e2e8f0" strokeDasharray="5 5" />}
+              {corr && <ReferenceLine y={corr.meanY} stroke="#e2e8f0" strokeDasharray="5 5" />}
+              {corr && (
+                <ReferenceLine ifOverflow="extendDomain" stroke={st!.color} strokeWidth={2} strokeOpacity={0.85}
+                  segment={[{ x: xMin, y: corr.slope * xMin + corr.intercept }, { x: xMax, y: corr.slope * xMax + corr.intercept }]} />
+              )}
+              <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }: any) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0].payload;
+                return (
+                  <div className="bg-slate-900 text-white rounded-xl px-3 py-2.5 text-[11px] shadow-2xl">
+                    <p className="font-bold mb-1.5 text-[12px]">{d.name}</p>
+                    <p className="flex items-center justify-between gap-4"><span className="text-white/60">{a?.short}</span><span className="font-bold">{uX(d.x)}</span></p>
+                    <p className="flex items-center justify-between gap-4"><span className="text-white/60">{b?.short}</span><span className="font-bold">{uY(d.y)}</span></p>
+                  </div>
+                );
+              }} />
+              <Scatter data={scatter}>
+                {scatter.map((p) => <Cell key={p.code3} fill={p.region === 'West Africa' ? '#1C6DB5' : '#7C3AED'} fillOpacity={0.8} />)}
+                <LabelList dataKey="code3" position="top" offset={8} style={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
+              </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
+          <div className="flex items-center gap-5 mt-3 text-[11px] text-slate-400">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-quantum-blue" />West Africa</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#7C3AED' }} />Central Africa</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5" style={{ background: st?.color ?? '#94a3b8' }} />Trend line</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-slate-200" style={{ borderTop: '1px dashed #cbd5e1' }} />Regional mean</span>
+          </div>
         </div>
-      )}
+        );
+      })()}
 
       <Methodology revision={revision} note={`${indicators.length} indicators · ${activeCountries.length} countries`} />
     </>
+  );
+};
+
+/* ------------------------- Sub-analysis (by sub-domain) -------------------- */
+const PALETTE = ['#1C6DB5', '#F57C1F', '#16A34A', '#7C3AED', '#0EA5E9', '#E11D48', '#0D9488', '#CA8A04'];
+
+const SubAnalysis: React.FC<{ group: any; activeCountries: any[] }> = ({ group, activeCountries }) => {
+  // Method-mix style sub-domains compose to a whole → stack; otherwise compare side-by-side.
+  const stacked = group.subdomain === 'Method mix';
+  const unit = group.items[0]?.meta?.unit;
+  const data = useMemo(() => {
+    const rows = activeCountries.map((c) => {
+      const row: any = { name: c.name };
+      group.items.forEach((ind: any) => { row[ind.code] = getValueByCode(c.id, ind.code).value ?? 0; });
+      return row;
+    });
+    rows.sort((a, b) => group.items.reduce((s: number, i: any) => s + (b[i.code] || 0), 0) - group.items.reduce((s: number, i: any) => s + (a[i.code] || 0), 0));
+    return rows;
+  }, [group, activeCountries]);
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 lg:p-8">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: group.color }} />
+        <h2 className="text-lg font-bold text-slate-900">Sub-analysis · {group.subdomain}</h2>
+      </div>
+      <p className="text-sm text-slate-500 mb-5">
+        {group.domain} · {stacked ? 'method composition' : 'side-by-side comparison'} of {group.items.length} indicators across {activeCountries.length} countries{unit ? ` (${unit})` : ''}.
+      </p>
+      <ResponsiveContainer width="100%" height={Math.max(320, activeCountries.length * 26)}>
+        <BarChart data={data} layout="vertical" margin={{ left: 8, right: 24, top: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+          <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
+          <Tooltip cursor={{ fill: 'rgba(28,109,181,0.05)' }} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+          {group.items.map((ind: any, i: number) => (
+            <Bar key={ind.code} dataKey={ind.code} name={ind.meta?.short} stackId={stacked ? 'a' : undefined}
+              fill={PALETTE[i % PALETTE.length]} radius={stacked ? 0 : [0, 4, 4, 0]} barSize={stacked ? 16 : 9} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-[11px] text-slate-500">
+        {group.items.map((ind: any, i: number) => (
+          <span key={ind.code} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: PALETTE[i % PALETTE.length] }} />{ind.meta?.short}</span>
+        ))}
+      </div>
+    </div>
   );
 };
 

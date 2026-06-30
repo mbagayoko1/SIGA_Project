@@ -15,14 +15,14 @@ interface Props {
   // single-select (Stage)
   selectedCode?: string;
   onSelect?: (code: string) => void;
-  // multi-select (Analytics cross-outcome)
+  // multi-select (Analytics cross-outcome / sub-analysis)
   mode?: 'single' | 'multi';
   selectedCodes?: string[];
-  onToggle?: (code: string) => void;
+  onChange?: (codes: string[]) => void; // multi: full next selection
   align?: 'left' | 'right'; // dropdown horizontal anchor (default right)
 }
 
-const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'single', selectedCodes = [], onToggle, align = 'right' }) => {
+const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'single', selectedCodes = [], onChange, align = 'right' }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [openDomain, setOpenDomain] = useState<string | null>(INDICATOR_CATALOG[0].domain);
@@ -42,8 +42,16 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'sin
 
   // single → select & close; multi → toggle & stay open for cross-outcome building
   const pick = (code: string) => {
-    if (multi) { onToggle?.(code); return; }
+    if (multi) {
+      onChange?.(selectedCodes.includes(code) ? selectedCodes.filter((c) => c !== code) : [...selectedCodes, code]);
+      return;
+    }
     onSelect?.(code); setOpen(false); setQuery('');
+  };
+  // multi: add/remove an entire sub-domain at once (sub-analysis)
+  const toggleGroup = (codes: string[]) => {
+    const allOn = codes.every((c) => selectedCodes.includes(c));
+    onChange?.(allOn ? selectedCodes.filter((c) => !codes.includes(c)) : [...new Set([...selectedCodes, ...codes])]);
   };
 
   return (
@@ -141,9 +149,25 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'sin
                         </button>
                         {isOpen && (
                           <div className="pb-2">
-                            {d.subdomains.map((sub) => (
+                            {d.subdomains.map((sub) => {
+                              const subCodes = sub.indicators.map((i) => i.code);
+                              const allOn = multi && subCodes.every((c) => selectedCodes.includes(c));
+                              const someOn = multi && subCodes.some((c) => selectedCodes.includes(c));
+                              return (
                               <div key={sub.name} className="mb-1">
-                                <p className="px-5 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sub.name}</p>
+                                {multi ? (
+                                  <button onClick={() => toggleGroup(subCodes)}
+                                    className="w-full flex items-center gap-2 px-5 pt-2 pb-1 group/sub">
+                                    <span className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0', allOn ? 'bg-quantum-blue border-quantum-blue' : someOn ? 'bg-quantum-blue/30 border-quantum-blue/40' : 'border-slate-300')}>
+                                      {allOn && <Check className="w-2.5 h-2.5 text-white" />}
+                                      {!allOn && someOn && <span className="w-1.5 h-0.5 bg-quantum-blue" />}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-400 group-hover/sub:text-quantum-blue uppercase tracking-widest">{sub.name}</span>
+                                    <span className="text-[9px] text-slate-300 font-semibold normal-case ml-auto">{allOn ? 'Remove all' : 'Add all'}</span>
+                                  </button>
+                                ) : (
+                                  <p className="px-5 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sub.name}</p>
+                                )}
                                 {sub.indicators.map((i) => (
                                   <button key={i.code} onClick={() => pick(i.code)}
                                     className={cn('w-full text-left pl-12 pr-5 py-2 hover:bg-slate-50 flex items-center gap-2', isSel(i.code) && 'bg-quantum-blue/5')}>
@@ -154,7 +178,8 @@ const IndicatorBrowser: React.FC<Props> = ({ selectedCode, onSelect, mode = 'sin
                                   </button>
                                 ))}
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
