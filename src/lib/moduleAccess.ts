@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 import { ViewMode, UserProfile, UserRole } from '../types';
+import { hasSupabase, supabase } from './supabase';
 
 /**
- * Admin-controlled activation of platform tabs/modules. Persisted to
- * localStorage and broadcast via a custom event so the nav + home portal update
- * live when an admin toggles a module on or off.
+ * Admin-controlled activation of platform tabs/modules.
+ *
+ * localStorage is the synchronous cache (so the API stays sync and offline
+ * works with zero keys); when Supabase is configured, the `module_access`
+ * table is the source of truth: it's pulled once on boot and overlaid onto
+ * the cache, and every toggle is pushed back fire-and-forget. All changes are
+ * broadcast via a custom event so nav + home portal update live.
  */
 
 export interface ManagedModule {
@@ -74,12 +79,46 @@ export function setModuleEnabled(key: ViewMode, enabled: boolean) {
     /* ignore */
   }
   window.dispatchEvent(new CustomEvent(EVENT));
+  // Push to the database in the background; render-first, never block the UI.
+  if (hasSupabase) {
+    supabase()
+      .from('module_access')
+      .upsert({ module_key: key, enabled }, { onConflict: 'module_key' })
+      .then(({ error }) => { if (error) console.error('[supabase] module_access upsert:', error.message); });
+  }
+}
+
+// One-time boot sync: overlay the DB state onto the local cache so all clients
+// converge on the admin-configured module switches.
+let synced = false;
+export function syncModuleAccessFromDb() {
+  if (!hasSupabase || synced) return;
+  synced = true;
+  supabase()
+    .from('module_access')
+    .select('module_key, enabled')
+    .then(({ data, error }) => {
+      if (error || !data) return;
+      const map = getModuleAccess();
+      let changed = false;
+      for (const row of data) {
+        if (map[row.module_key as ViewMode] !== row.enabled) {
+          map[row.module_key as ViewMode] = row.enabled;
+          changed = true;
+        }
+      }
+      if (changed) {
+        try { localStorage.setItem(LS_KEY, JSON.stringify(map)); } catch { /* ignore */ }
+        window.dispatchEvent(new CustomEvent(EVENT));
+      }
+    });
 }
 
 /** React hook: live module-access map that re-renders when toggled anywhere. */
 export function useModuleAccess(): ModuleAccessMap {
   const [map, setMap] = useState<ModuleAccessMap>(() => getModuleAccess());
   useEffect(() => {
+    syncModuleAccessFromDb(); // no-op offline; one-time overlay when Supabase is configured
     const update = () => setMap(getModuleAccess());
     window.addEventListener(EVENT, update);
     window.addEventListener('storage', update);

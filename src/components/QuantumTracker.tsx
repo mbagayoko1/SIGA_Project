@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { generateNarrative, hasGemini } from '../lib/ai';
@@ -55,6 +55,8 @@ import { useUser } from '../contexts/UserContext';
 import { userService } from '../services/userService';
 import { extractTextFromFile, parseMonitoringReport, MonitoringData } from '../lib/parseMonitoringReport';
 import HeroGeoMotif from './quantum/HeroGeoMotif';
+import { hasSupabase } from '../lib/supabase';
+import { saveMonitoringReport, listMonitoringReports, SavedReport } from '../lib/reportStore';
 
 const MOCK_REGIONAL_DATA: MonitoringData = {
   office: 'Regional Office/WCA Region',
@@ -238,6 +240,12 @@ export default function QuantumTracker() {
   const [isGeneratingManagementReport, setIsGeneratingManagementReport] = useState(false);
   
   const [dashboardType, setDashboardType] = useState<'country' | 'regional'>('country');
+  // Database persistence (Supabase) — count of saved reports + recent history.
+  const [dbSavedCount, setDbSavedCount] = useState(0);
+  const [reportHistory, setReportHistory] = useState<SavedReport[]>([]);
+  useEffect(() => {
+    if (hasSupabase) listMonitoringReports().then(setReportHistory).catch(() => {});
+  }, []);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -305,6 +313,7 @@ export default function QuantumTracker() {
     setIsAnalyzing(true);
 
     const newData = [...analyzedData];
+    const toPersist: Array<{ data: MonitoringData; file: File }> = [];
     for (const f of files) {
       let parsed: MonitoringData | null = null;
       try {
@@ -316,6 +325,7 @@ export default function QuantumTracker() {
       const data = parsed ?? fallbackForFile(f);
       if (data && !newData.find(d => d.office === data.office)) {
         newData.push(data);
+        toPersist.push({ data, file: f });
       }
     }
 
@@ -339,6 +349,24 @@ export default function QuantumTracker() {
           dashboardType,
         })
         .catch((err) => console.error('Activity log failed (non-blocking):', err));
+    }
+
+    // Persist each parsed report (+ original file) to the database — strictly
+    // AFTER rendering, fire-and-forget, so network I/O never blocks the overlay.
+    if (hasSupabase && toPersist.length) {
+      Promise.all(
+        toPersist.map(({ data, file }) =>
+          saveMonitoringReport(data, file, profile?.displayName ?? 'unknown'),
+        ),
+      )
+        .then((ids) => {
+          const saved = ids.filter((id) => id != null).length;
+          if (saved) {
+            setDbSavedCount((n) => n + saved);
+            listMonitoringReports().then(setReportHistory).catch(() => {});
+          }
+        })
+        .catch((err) => console.error('Report persistence failed (non-blocking):', err));
     }
   };
 
@@ -554,6 +582,22 @@ export default function QuantumTracker() {
             </h2>
             <h1 className="text-2xl font-bold text-white tracking-tight">WCARO Regional Quantum Monitoring Tracker</h1>
             <p className="text-sm text-white/80 mt-1 font-medium">Upload quarterly monitoring reports to generate live performance intelligence.</p>
+            {hasSupabase && (dbSavedCount > 0 || reportHistory.length > 0) && (
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                {dbSavedCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-400/20 border border-emerald-300/30 text-emerald-100 text-[11px] font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                    {dbSavedCount} report{dbSavedCount > 1 ? 's' : ''} saved to database
+                  </span>
+                )}
+                {reportHistory.slice(0, 4).map((r) => (
+                  <span key={r.id} title={`Uploaded ${new Date(r.uploadedAt).toLocaleString()} by ${r.uploadedBy ?? '—'} · ${r.achieved + r.overachieved}/${r.totalMilestones} achieved`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-white/85 text-[11px] font-medium">
+                    {r.office} · {r.period}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

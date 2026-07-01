@@ -15,7 +15,7 @@ import { TrendingUp, TrendingDown, Gauge, Building2, CalendarClock, ArrowUpRight
 import { WCA_COUNTRIES } from '../../data';
 import type { DataSource, IndicatorValue } from '../../types';
 import { CATALOG_BY_CODE } from '../../data/indicatorCatalog';
-import { getValueByCode, getRevision } from '../../lib/indicatorData';
+import { getValueByCode, getRevision, useLiveIndicators } from '../../lib/indicatorData';
 import SourceBadge from '../quantum/SourceBadge';
 import IndicatorBrowser from './IndicatorBrowser';
 import CountryFilter from './CountryFilter';
@@ -68,6 +68,7 @@ interface AnalyticsViewProps {
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeChange }) => {
   const [codes, setCodes] = useState<string[]>(codeProp ? [codeProp] : ['52']);
   const [countryIds, setCountryIds] = useState<string[]>([]); // [] = all
+  const liveVersion = useLiveIndicators(); // bumps when the Supabase overlay lands
   const revision = getRevision();
 
   // Sidebar / single-select drives the focused indicator → reset the comparison set.
@@ -107,7 +108,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeCha
     const max = vals.length ? Math.max(...vals) : 1;
     const mean = vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : null;
     return { code, meta, rows, min, max, mean };
-  }), [codes, activeCountries]);
+  }), [codes, activeCountries, liveVersion]);
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar pr-1 space-y-6 pb-10">

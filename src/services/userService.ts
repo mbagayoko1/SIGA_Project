@@ -14,14 +14,15 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { UserProfile, UserRole, ActivityLog } from '../types';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { hasSupabase, supabase } from '../lib/supabase';
 
 const USERS_COLLECTION = 'users';
 const LOGS_COLLECTION = 'activityLogs';
 
-// When the bundled Firebase config is still the AI Studio placeholder, there is
-// no real backend. In that case the whole admin module runs against a local
-// (localStorage) store so it is fully functional offline. As soon as a real
-// Firebase config is provided, the Firestore implementation takes over.
+// Provider selection (checked in this order):
+//   1. Supabase   — when VITE_SUPABASE_URL/ANON_KEY are configured (primary DB)
+//   2. Firestore  — when a real Firebase config is present (legacy path)
+//   3. mock       — localStorage; fully functional offline with zero keys
 const IS_MOCK = firebaseConfig.apiKey === 'remixed-api-key' || !firebaseConfig.apiKey;
 const LS_USERS = 'siga_users';
 const LS_LOGS = 'siga_logs';
@@ -78,6 +79,94 @@ function pushLocalLog(entry: Omit<ActivityLog, 'id'>) {
   writeLS(LS_LOGS, logs.slice(0, 500));
 }
 
+/* ---------------------------------------------------------------------------
+ * Supabase provider — `profiles` + `activity_logs` tables (snake_case rows).
+ * Mirrors the mock/Firestore behavior; errors degrade to safe empty results
+ * so a network blip never crashes the admin UI.
+ * ------------------------------------------------------------------------- */
+const ts = (iso: string | null | undefined): number | undefined => (iso ? Date.parse(iso) : undefined);
+
+function rowToProfile(r: any): UserProfile {
+  return {
+    uid: r.uid,
+    email: r.email,
+    displayName: r.display_name,
+    role: r.role as UserRole,
+    active: r.active,
+    allowedModules: r.allowed_modules ?? undefined,
+    title: r.title ?? undefined,
+    department: r.department ?? undefined,
+    location: r.location ?? undefined,
+    bio: r.bio ?? undefined,
+    photoURL: r.photo_url ?? undefined,
+    lastActive: ts(r.last_active),
+    createdAt: ts(r.created_at) ?? Date.now(),
+    updatedAt: ts(r.updated_at) ?? Date.now(),
+  };
+}
+
+function profileToRow(p: Partial<UserProfile>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (p.uid !== undefined) row.uid = p.uid;
+  if (p.email !== undefined) row.email = p.email;
+  if (p.displayName !== undefined) row.display_name = p.displayName;
+  if (p.role !== undefined) row.role = p.role;
+  if (p.active !== undefined) row.active = p.active;
+  if (p.allowedModules !== undefined) row.allowed_modules = p.allowedModules;
+  if (p.title !== undefined) row.title = p.title;
+  if (p.department !== undefined) row.department = p.department;
+  if (p.location !== undefined) row.location = p.location;
+  if (p.bio !== undefined) row.bio = p.bio;
+  if (p.photoURL !== undefined) row.photo_url = p.photoURL;
+  row.updated_at = new Date().toISOString();
+  return row;
+}
+
+const supa = {
+  async getUserProfile(uid: string): Promise<UserProfile | null> {
+    const { data, error } = await supabase().from('profiles').select('*').eq('uid', uid).maybeSingle();
+    if (error) { console.error('[supabase] getUserProfile:', error.message); return null; }
+    return data ? rowToProfile(data) : null;
+  },
+  async createUserProfile(profile: Omit<UserProfile, 'createdAt' | 'updatedAt'>): Promise<void> {
+    const { error } = await supabase().from('profiles').insert(profileToRow({ active: true, ...profile }));
+    if (error) { console.error('[supabase] createUserProfile:', error.message); return; }
+    await userService.logActivity(actor.uid, actor.name, 'User Created', { targetUid: profile.uid, name: profile.displayName });
+  },
+  async deleteUserProfile(uid: string): Promise<void> {
+    const { error } = await supabase().from('profiles').delete().eq('uid', uid);
+    if (error) { console.error('[supabase] deleteUserProfile:', error.message); return; }
+    await userService.logActivity(actor.uid, actor.name, 'User Removed', { targetUid: uid });
+  },
+  async updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<void> {
+    const { error } = await supabase().from('profiles').update(profileToRow(updates)).eq('uid', uid);
+    if (error) { console.error('[supabase] updateUserProfile:', error.message); return; }
+    const action =
+      'active' in updates ? (updates.active ? 'User Activated' : 'User Deactivated') :
+      'role' in updates ? 'Role Updated' : 'Profile Updated';
+    await userService.logActivity(actor.uid, actor.name, action, { targetUid: uid, updates });
+  },
+  async getAllUsers(): Promise<UserProfile[]> {
+    const { data, error } = await supabase().from('profiles').select('*').order('created_at', { ascending: false });
+    if (error) { console.error('[supabase] getAllUsers:', error.message); return []; }
+    return (data ?? []).map(rowToProfile);
+  },
+  async logActivity(userId: string, userName: string, action: string, metadata?: any): Promise<void> {
+    const { error } = await supabase().from('activity_logs').insert({
+      user_id: userId, user_name: userName, action, metadata: metadata ?? null,
+    });
+    if (error) console.error('[supabase] logActivity:', error.message);
+  },
+  async getActivityLogs(count = 100): Promise<ActivityLog[]> {
+    const { data, error } = await supabase().from('activity_logs').select('*').order('ts', { ascending: false }).limit(count);
+    if (error) { console.error('[supabase] getActivityLogs:', error.message); return []; }
+    return (data ?? []).map((r: any) => ({
+      id: String(r.id), userId: r.user_id, userName: r.user_name, action: r.action,
+      timestamp: ts(r.ts) ?? Date.now(), metadata: r.metadata ?? undefined,
+    }));
+  },
+};
+
 export const userService = {
   /** Record who is performing admin actions (for audit attribution in mock mode). */
   setActor(profile: { uid: string; displayName: string } | null) {
@@ -85,6 +174,7 @@ export const userService = {
   },
 
   async getUserProfile(uid: string): Promise<UserProfile | null> {
+    if (hasSupabase) return supa.getUserProfile(uid);
     if (IS_MOCK) return getLocalUsers().find((u) => u.uid === uid) || null;
     try {
       const docSnap = await getDoc(doc(db, USERS_COLLECTION, uid));
@@ -96,6 +186,7 @@ export const userService = {
   },
 
   async createUserProfile(profile: Omit<UserProfile, 'createdAt' | 'updatedAt'>): Promise<void> {
+    if (hasSupabase) return supa.createUserProfile(profile);
     const timestamp = now();
     const newProfile: UserProfile = { active: true, ...profile, createdAt: timestamp, updatedAt: timestamp };
     if (IS_MOCK) {
@@ -115,6 +206,7 @@ export const userService = {
   },
 
   async deleteUserProfile(uid: string): Promise<void> {
+    if (hasSupabase) return supa.deleteUserProfile(uid);
     if (IS_MOCK) {
       const users = getLocalUsers();
       const target = users.find((u) => u.uid === uid);
@@ -132,6 +224,7 @@ export const userService = {
   },
 
   async updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<void> {
+    if (hasSupabase) return supa.updateUserProfile(uid, updates);
     if (IS_MOCK) {
       const users = getLocalUsers();
       const idx = users.findIndex((u) => u.uid === uid);
@@ -160,6 +253,7 @@ export const userService = {
   },
 
   async getAllUsers(): Promise<UserProfile[]> {
+    if (hasSupabase) return supa.getAllUsers();
     if (IS_MOCK) return [...getLocalUsers()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     try {
       const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
@@ -171,6 +265,7 @@ export const userService = {
   },
 
   async logActivity(userId: string, userName: string, action: string, metadata?: any): Promise<void> {
+    if (hasSupabase) return supa.logActivity(userId, userName, action, metadata);
     if (IS_MOCK) {
       pushLocalLog({ userId, userName, action, timestamp: now(), metadata: metadata || null });
       return;
@@ -185,6 +280,7 @@ export const userService = {
   },
 
   async getActivityLogs(count = 100): Promise<ActivityLog[]> {
+    if (hasSupabase) return supa.getActivityLogs(count);
     if (IS_MOCK) return getLocalLogs().slice(0, count);
     try {
       const q = query(collection(db, LOGS_COLLECTION), orderBy('timestamp', 'desc'), limit(count));

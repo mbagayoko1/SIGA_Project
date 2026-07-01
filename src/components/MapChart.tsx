@@ -9,7 +9,7 @@ import { scaleLinear } from 'd3';
 import { CountryData } from '../types';
 import { WCA_COUNTRIES } from '../data';
 import { CATALOG_BY_CODE } from '../data/indicatorCatalog';
-import { getValueByCode } from '../lib/indicatorData';
+import { getValueByCode, useLiveIndicators } from '../lib/indicatorData';
 import { Tooltip } from 'react-tooltip';
 import { Search, ZoomIn, ZoomOut, RotateCcw, AlertTriangle, Layers, Map as MapIcon, X, Check, ChevronDown, Loader2, Download, Eye, EyeOff, FileImage, FileDown } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -195,13 +195,14 @@ export default function MapChart({ code, onToggleCountry, selectedCountryIds }: 
     return () => resizeObserver.disconnect();
   }, []);
 
+  const liveVersion = useLiveIndicators(); // re-color when the Supabase overlay lands
   const stats = useMemo(() => {
     const values = WCA_COUNTRIES.map(c => valueOf(c.id)).filter((v): v is number => v != null);
     return {
       min: values.length ? Math.min(...values) : 0,
       max: values.length ? Math.max(...values) : 1,
     };
-  }, [code]);
+  }, [code, liveVersion]);
 
   const colorScale = useMemo(() => {
     return scaleLinear<string>()

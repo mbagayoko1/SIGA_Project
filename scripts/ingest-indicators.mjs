@@ -10,6 +10,9 @@
  * USAGE
  *   node scripts/ingest-indicators.mjs           # offline: emits seed snapshot (safe, deterministic)
  *   node scripts/ingest-indicators.mjs --live     # attempts the real APIs, falls back per-indicator
+ *   node scripts/ingest-indicators.mjs --live --db  # ...and also insert a new revision into Supabase
+ *                                                   (needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+ *                                                    in scripts/.env — see scripts/supa.mjs)
  *
  * This is a SCAFFOLD: the offline path is fully working today. Each network
  * fetcher has a real endpoint shape with TODOs where the exact indicator IDs
@@ -72,7 +75,8 @@ const INDICATOR_CONFIG = {
 };
 
 // ISO3 → UN M49 numeric code (PDP keys country data by m49_code, stored as string).
-const M49 = {
+// Exported for scripts/db-seed.mjs (countries table).
+export const M49 = {
   BEN: '204', BFA: '854', CPV: '132', CMR: '120', CAF: '140', TCD: '148', COG: '178',
   CIV: '384', COD: '180', GNQ: '226', GAB: '266', GMB: '270', GHA: '288', GIN: '324',
   GNB: '624', LBR: '430', MLI: '466', MRT: '478', NER: '562', NGA: '566', STP: '678',
@@ -331,9 +335,57 @@ async function main() {
     `[ingest] mode=${LIVE ? 'live' : 'offline(seed)'} → ${OUT}\n` +
       `[ingest] ${isos.length} countries × ${codes.length} indicators · sources: ${[...sourcesUsed].join(', ')}`,
   );
+
+  // --db: also persist this run as a new revision in Supabase. The JSON above
+  // is still written first — it remains the offline fallback for the static build.
+  if (process.argv.includes('--db')) {
+    const { getServiceClient } = await import('./supa.mjs');
+    const sb = getServiceClient(); // throws with setup help if scripts/.env is missing
+    const { data: rev, error: revErr } = await sb
+      .from('revisions')
+      .insert({
+        generated_at: snapshot.revision.generatedAt,
+        current_year: snapshot.revision.currentYear,
+        primary_source: snapshot.revision.primarySource,
+        stale_threshold_years: snapshot.revision.staleThresholdYears,
+        sources_used: snapshot.revision.sourcesUsed,
+      })
+      .select('id')
+      .single();
+    if (revErr) throw new Error(`[ingest --db] revision insert failed: ${revErr.message}`);
+
+    const rows = [];
+    for (const iso3 of isos) {
+      for (const code of codes) {
+        const v = values[iso3][code];
+        rows.push({
+          revision_id: rev.id,
+          indicator_code: code,
+          iso3,
+          value: v.value,
+          source: v.source,
+          source_url: v.sourceUrl,
+          reference_year: v.referenceYear,
+          fetched_at: v.fetchedAt || null,
+          is_stale: v.isStale,
+          fallback_used: v.fallbackUsed,
+        });
+      }
+    }
+    // chunked inserts to stay under payload limits
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await sb.from('indicator_values').insert(rows.slice(i, i + 500));
+      if (error) throw new Error(`[ingest --db] values insert failed: ${error.message}`);
+    }
+    console.log(`[ingest --db] revision ${rev.id}: ${rows.length} indicator_values inserted`);
+  }
 }
 
-main().catch((e) => {
-  console.error('[ingest] failed:', e);
-  process.exit(1);
-});
+// Run only when executed directly (this module is also imported by db-seed.mjs for M49).
+import { pathToFileURL } from 'node:url';
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => {
+    console.error('[ingest] failed:', e);
+    process.exit(1);
+  });
+}

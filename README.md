@@ -44,3 +44,35 @@ The Quantum reskin is driven from two places:
 
 `Home` is the default view; every module is reachable from the Apps grid or the
 in-app header nav.
+
+## Database (Supabase)
+
+The portal can persist **all of its data** to a Supabase (Postgres) project: users &
+audit trail, module access, the PDP indicator catalog + revisioned observations,
+the IRRF ledger, and uploaded quarterly monitoring reports (rows + original file in
+Storage). With no configuration it runs fully offline (localStorage + the bundled
+data snapshot) — nothing breaks without keys.
+
+### One-time setup
+1. Create a project at https://supabase.com (free tier is fine).
+2. Apply the schema: paste `supabase/migrations/0001_init.sql` into the SQL editor
+   (or `supabase db push` with the CLI). This creates 14 tables, RLS policies, and
+   the `monitoring-reports` Storage bucket.
+3. Script credentials: `cp scripts/.env.example scripts/.env` and fill in
+   `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API). This file
+   is gitignored — the service-role key bypasses RLS and must never be committed.
+4. Seed reference data: `npm run db:seed`
+   (countries, indicator catalog, IRRF ledger, module switches, demo users).
+5. Load indicator data: `npm run db:ingest`
+   (runs the live PDP/DHS/WHO ingestion and inserts a new revision).
+6. App credentials: add to `.env.local`
+   `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (the publishable anon key).
+
+### How the app uses it
+- `src/services/userService.ts` — provider order: Supabase → Firestore → localStorage mock.
+- `src/lib/moduleAccess.ts` — localStorage stays the sync cache; DB is pulled on boot
+  and every toggle is pushed back (fire-and-forget).
+- `src/lib/indicatorData.ts` — the bundled JSON renders first; the freshest DB
+  revision is overlaid in the background (`useLiveIndicators()` re-renders charts).
+- Quantum Tracker — parsed reports (+ the original PDF) are saved after render,
+  never blocking the extraction overlay; recent uploads show in the hero.

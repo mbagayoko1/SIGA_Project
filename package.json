@@ -10,10 +10,13 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "ingest": "node scripts/ingest-indicators.mjs",
-    "ingest:live": "node scripts/ingest-indicators.mjs --live"
+    "ingest:live": "node scripts/ingest-indicators.mjs --live",
+    "db:seed": "node scripts/db-seed.mjs",
+    "db:ingest": "node scripts/ingest-indicators.mjs --live --db"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@supabase/supabase-js": "^2.110.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
