@@ -72,12 +72,14 @@ export default function App() {
   const [showCountrySelector, setShowCountrySelector] = useState(false);
   const [showIndicatorSelector, setShowIndicatorSelector] = useState(false);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
-  // Analytics selection (PDP indicator_code) + which Outcome/domain is expanded in the sidebar.
-  const [analyticsCode, setAnalyticsCode] = useState('37.1'); // Unmet need for family planning
+  // Analytics selection (PDP indicator_codes; multi = cross-outcome analysis)
+  // + which Outcome/domain is expanded in the sidebar. Sidebar clicks TOGGLE
+  // membership so a sub-analysis can be built across outcomes.
+  const [analyticsCodes, setAnalyticsCodes] = useState<string[]>(['37.1']); // Unmet need for family planning
   const [stageCode, setStageCode] = useState('52'); // Stage map indicator (Maternal mortality ratio)
   const [openSidebarDomain, setOpenSidebarDomain] = useState<string | null>(INDICATOR_CATALOG[0].domain);
   const selectIndicatorCode = (code: string, domain: string) => {
-    setAnalyticsCode(code);
+    setAnalyticsCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
     setOpenSidebarDomain(domain);
     setViewMode('analytics');
   };
@@ -321,7 +323,7 @@ export default function App() {
                       {sub.indicators.map((ind) => (
                         <SidebarLink
                           key={ind.code}
-                          active={analyticsCode === ind.code}
+                          active={analyticsCodes.includes(ind.code)}
                           onClick={() => selectIndicatorCode(ind.code, domain.domain)}
                           icon={<CircleDot className="w-4 h-4" />}
                         >
@@ -615,7 +617,7 @@ export default function App() {
         </div>
         </>
         ) : viewMode === 'analytics' ? (
-          <AnalyticsView code={analyticsCode} onCodeChange={setAnalyticsCode} />
+          <AnalyticsView codes={analyticsCodes} onCodesChange={setAnalyticsCodes} />
         ) : viewMode === 'about-geospatial' ? (
           <AboutGeospatialPlatform />
         ) : viewMode === 'quantum' ? (

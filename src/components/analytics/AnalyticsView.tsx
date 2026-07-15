@@ -6,7 +6,7 @@
  *  - 2+ indicators → cross-outcome performance matrix + correlation (when 2)
  * All charts react to the selected indicators AND the country filter.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ReferenceLine,
   ScatterChart, Scatter, ZAxis, CartesianGrid, LabelList,
@@ -61,36 +61,23 @@ function strength(r: number) {
 }
 
 interface AnalyticsViewProps {
-  code?: string;
-  onCodeChange?: (code: string) => void;
+  /** Controlled cross-outcome selection (sidebar + browser share it via App). */
+  codes?: string[];
+  onCodesChange?: (codes: string[]) => void;
 }
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ code: codeProp, onCodeChange }) => {
-  const [codes, setCodes] = useState<string[]>(codeProp ? [codeProp] : ['52']);
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ codes: codesProp, onCodesChange }) => {
+  // Controlled when App owns the selection (sidebar toggles accumulate across
+  // outcomes there); falls back to internal state when used standalone.
+  const [internalCodes, setInternalCodes] = useState<string[]>(['52']);
+  const codes = codesProp ?? internalCodes;
+  const changeCodes = (next: string[]) => (onCodesChange ?? setInternalCodes)(next);
+  const toggleCode = (c: string) =>
+    changeCodes(codes.includes(c) ? codes.filter((x) => x !== c) : [...codes, c]);
+
   const [countryIds, setCountryIds] = useState<string[]>([]); // [] = all
   const liveVersion = useLiveIndicators(); // bumps when the Supabase overlay lands
   const revision = getRevision();
-
-  // Sidebar / single-select drives the focused indicator → reset the comparison set.
-  const lastProp = useRef(codeProp);
-  useEffect(() => {
-    if (codeProp && codeProp !== lastProp.current) {
-      lastProp.current = codeProp;
-      setCodes([codeProp]);
-    }
-  }, [codeProp]);
-
-  const toggleCode = (c: string) => {
-    setCodes((prev) => {
-      const next = prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c];
-      onCodeChange?.(next[0] ?? c);
-      return next;
-    });
-  };
-  const changeCodes = (next: string[]) => {
-    setCodes(next);
-    onCodeChange?.(next[0] ?? '52');
-  };
 
   const activeCountries = useMemo(
     () => (countryIds.length ? WCA_COUNTRIES.filter((c) => countryIds.includes(c.id)) : WCA_COUNTRIES),
