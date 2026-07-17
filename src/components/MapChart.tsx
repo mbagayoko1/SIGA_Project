@@ -57,12 +57,12 @@ const COUNTRY_COORDS: Record<string, [number, number]> = {
 };
 
 interface Props {
-  code: string; // PDP indicator_code driving the choropleth
+  codes: string[]; // PDP indicator_codes on stage; one (the "active mapping") colors the choropleth
   onToggleCountry: (country: CountryData) => void;
   selectedCountryIds: string[];
 }
 
-export default function MapChart({ code, onToggleCountry, selectedCountryIds }: Props) {
+export default function MapChart({ codes, onToggleCountry, selectedCountryIds }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [position, setPosition] = useState({ coordinates: [5, 12] as [number, number], zoom: 1 });
@@ -106,6 +106,13 @@ export default function MapChart({ code, onToggleCountry, selectedCountryIds }: 
       });
     return () => { mounted = false; };
   }, []);
+
+  // Which of the selected indicators drives the choropleth colors.
+  const [primaryIdx, setPrimaryIdx] = useState(0);
+  useEffect(() => {
+    if (primaryIdx >= codes.length) setPrimaryIdx(0);
+  }, [codes, primaryIdx]);
+  const code = codes[primaryIdx] ?? codes[0];
 
   const meta = CATALOG_BY_CODE[code];
   const valueOf = (iso3: string): number | null => getValueByCode(iso3, code).value;
@@ -323,10 +330,40 @@ export default function MapChart({ code, onToggleCountry, selectedCountryIds }: 
           Analytics Stage
         </h3>
         
-        {meta && (
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{meta.domain} · {meta.subdomain}</p>
+        {codes.length > 1 ? (
+          <div className="mb-2 sm:mb-3 space-y-1">
+            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Mapping:</p>
+            <div className="flex flex-col gap-1 max-h-[132px] overflow-y-auto custom-scrollbar pr-0.5">
+              {codes.map((c, idx) => {
+                const m = CATALOG_BY_CODE[c];
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setPrimaryIdx(idx)}
+                    className={cn(
+                      'flex items-center gap-2 px-2 py-1 rounded text-[9px] font-bold text-left transition-colors max-w-[190px]',
+                      primaryIdx === idx ? 'bg-unfpa-blue text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100',
+                    )}
+                    title={m?.name ?? c}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ background: primaryIdx === idx ? '#fff' : m?.color ?? '#cbd5e1' }}
+                    />
+                    <span className="truncate">{m?.short ?? c}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <>
+            {meta && (
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{meta.domain} · {meta.subdomain}</p>
+            )}
+            <p className="text-[10px] sm:text-xs font-black text-text-main mb-2 sm:mb-3 truncate max-w-[200px]">{meta?.short ?? 'Indicator'}</p>
+          </>
         )}
-        <p className="text-[10px] sm:text-xs font-black text-text-main mb-2 sm:mb-3 truncate max-w-[200px]">{meta?.short ?? 'Indicator'}</p>
 
         <div className="flex items-center gap-2 sm:gap-3">
           <span className="text-[9px] sm:text-[10px] text-text-muted font-bold tabular-nums">{stats.min}</span>
@@ -570,10 +607,15 @@ export default function MapChart({ code, onToggleCountry, selectedCountryIds }: 
                       <div class="border-b border-white-10 pb-1 mb-1">
                         <p class="font-black text-xs">${countryData.name}</p>
                       </div>
-                      <div class="flex items-center justify-between gap-4">
-                        <span class="text-[9px] font-bold text-white-50">${meta?.short ?? 'Indicator'}:</span>
-                        <span class="text-[9px] font-black">${cellValue != null ? cellValue + (meta?.unit === '%' ? '%' : ' ' + (meta?.unit ?? '')) : 'No data'}</span>
-                      </div>
+                      ${codes.map((c) => {
+                        const m = CATALOG_BY_CODE[c];
+                        const v = getValueByCode(countryData.id, c).value;
+                        const isActive = c === code;
+                        return `<div class="flex items-center justify-between gap-4">
+                          <span class="text-[9px] font-bold ${isActive ? '' : 'text-white-50'}">${isActive ? '▸ ' : ''}${m?.short ?? c}:</span>
+                          <span class="text-[9px] font-black">${v != null ? v + (m?.unit === '%' ? '%' : ' ' + (m?.unit ?? '')) : 'No data'}</span>
+                        </div>`;
+                      }).join('')}
                       ${cellProv?.source ? `<div class="flex items-center justify-between gap-4"><span class="text-[8px] font-bold text-white-50">Source:</span><span class="text-[8px] font-black">${cellProv.source}${cellProv.referenceYear ? ' ' + cellProv.referenceYear : ''}</span></div>` : ''}
                       ${isHotspot ? '<p class="text-[8px] text-red-400 font-black mt-2">!!! CRISIS HOTSPOT !!!</p>' : ''}
                     </div>

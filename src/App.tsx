@@ -76,7 +76,9 @@ export default function App() {
   // + which Outcome/domain is expanded in the sidebar. Sidebar clicks TOGGLE
   // membership so a sub-analysis can be built across outcomes.
   const [analyticsCodes, setAnalyticsCodes] = useState<string[]>(['37.1']); // Unmet need for family planning
-  const [stageCode, setStageCode] = useState('52'); // Stage map indicator (Maternal mortality ratio)
+  // Stage map indicators (multi-select; the map's legend picks which one colors
+  // the choropleth, all of them show in the country tooltip). Never empty.
+  const [stageCodes, setStageCodes] = useState<string[]>(['52']); // Maternal mortality ratio
   const [openSidebarDomain, setOpenSidebarDomain] = useState<string | null>(INDICATOR_CATALOG[0].domain);
   const selectIndicatorCode = (code: string, domain: string) => {
     setAnalyticsCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
@@ -350,7 +352,9 @@ export default function App() {
               <div className="max-w-xl">
             <h2 className="text-[26px] font-bold tracking-tight text-text-main leading-tight">
               {viewMode === 'stage'
-                ? (CATALOG_BY_CODE[stageCode]?.name ?? 'Indicator')
+                ? (stageCodes.length === 1
+                    ? (CATALOG_BY_CODE[stageCodes[0]]?.name ?? 'Indicator')
+                    : `${stageCodes.length} Indicators on Stage`)
                 : (selectedIndicators.length === 1
                     ? INDICATORS[selectedIndicators[0]].label
                     : `${selectedIndicators.length} Indicators Selected`)
@@ -358,7 +362,9 @@ export default function App() {
             </h2>
             <p className="text-sm text-text-muted mt-2 font-medium">
               {viewMode === 'stage'
-                ? `${CATALOG_BY_CODE[stageCode]?.domain ?? ''} · ${CATALOG_BY_CODE[stageCode]?.subdomain ?? ''} — choropleth across 24 WCA country offices, sourced from the UNFPA Population Data Portal.`
+                ? (stageCodes.length === 1
+                    ? `${CATALOG_BY_CODE[stageCodes[0]]?.domain ?? ''} · ${CATALOG_BY_CODE[stageCodes[0]]?.subdomain ?? ''} — choropleth across 24 WCA country offices, sourced from the UNFPA Population Data Portal.`
+                    : `Comparing ${stageCodes.map((c) => CATALOG_BY_CODE[c]?.short ?? c).join(', ')} — pick the active mapping in the map legend; all appear in country tooltips.`)
                 : (selectedIndicators.length === 1
                     ? "Cross-border comparative analysis and situational monitoring from the Population Data Portal."
                     : `Comparing ${selectedIndicators.map(id => INDICATORS[id].label).join(', ')} across the WCA region.`)
@@ -370,7 +376,8 @@ export default function App() {
             <div className="flex items-center gap-3">
               {/* Indicator Selector — Stage uses the PDP domain/sub-domain browser */}
               {viewMode === 'stage' ? (
-                <IndicatorBrowser selectedCode={stageCode} onSelect={setStageCode} />
+                <IndicatorBrowser mode="multi" selectedCodes={stageCodes}
+                  onChange={(next) => { if (next.length) setStageCodes(next); }} />
               ) : (
               <div className="relative">
                 <button
@@ -559,7 +566,7 @@ export default function App() {
               >
                 <div className="flex-1 min-h-0 flex flex-col">
                   <MapChart
-                    code={stageCode}
+                    codes={stageCodes}
                     onToggleCountry={toggleCountry}
                     selectedCountryIds={selectedCountries.map(c => c.id)}
                   />
